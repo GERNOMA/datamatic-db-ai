@@ -1,6 +1,6 @@
 import { checkOrigin, getSession, openDatabase } from "@/lib/database";
 import { validateQuery } from "@/lib/sql";
-import { CHAT_PROMPT, runChat, type Message } from "@/lib/chat";
+import { chatPrompt, runChat, type Message } from "@/lib/chat";
 import type { QueryStep, Table } from "@/lib/types";
 import type { Connection as MySQLConnection } from "mysql2";
 export const runtime = "nodejs";
@@ -45,8 +45,9 @@ export async function POST(request: Request) {
         }),
       };
     });
+    const freeVisualization = body.freeVisualization === true;
     const messages: Message[] = [
-      { role: "system", content: CHAT_PROMPT },
+      { role: "system", content: chatPrompt(freeVisualization) },
       { role: "system", content: JSON.stringify({ tables: schema }) },
       ...(Array.isArray(body.history)
         ? body.history
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
             body: JSON.stringify({
               model: session.model,
               temperature: 0,
-              max_tokens: 3000,
+              max_tokens: freeVisualization ? 12000 : 3000,
               messages,
             }),
           },
@@ -106,6 +107,7 @@ export async function POST(request: Request) {
           session.url,
         );
       },
+      freeVisualization,
     );
     return Response.json(answer);
   } catch (error) {

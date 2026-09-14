@@ -28,6 +28,7 @@ export type AnswerView = {
 
 export type ChatAnswer = {
   text: string;
+  html?: string;
   views: AnswerView[];
   steps: QueryStep[];
 };

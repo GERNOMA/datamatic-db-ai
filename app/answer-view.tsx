@@ -1,4 +1,5 @@
 import type { ChatAnswer } from "@/lib/types";
+import { visualizationDocument } from "@/lib/visualization";
 
 function display(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -9,6 +10,22 @@ export default function AnswerView({ answer }: { answer: ChatAnswer }) {
   return (
     <div className="answer-view">
       <p className="answer-text">{answer.text}</p>
+      {answer.html && (
+        <>
+          <div className="free-visualization-frame">
+            <iframe
+              title="Free visualization"
+              sandbox="allow-scripts"
+              referrerPolicy="no-referrer"
+              srcDoc={visualizationDocument(answer.html, answer.steps)}
+            />
+          </div>
+          <details className="sql">
+            <summary>View visualization code</summary>
+            <pre>{answer.html}</pre>
+          </details>
+        </>
+      )}
       {answer.views.map((view, index) => {
         const rows = answer.steps[view.query].rows;
         const columns = Array.from(new Set(rows.flatMap(Object.keys)));

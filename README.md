@@ -15,7 +15,7 @@ Alternatively, set `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` in `.e
 
 1. **Database:** select a table and describe it and its fields. Create groups such as Workers containing workers, company, and workers_route. Edit or delete groups by clicking their names.
 2. **Chat:** select one or more groups and ask a question. The model receives a JSON schema containing only selected table names, field names/types, and descriptions when present, alongside your questions and prior answers and SQL. Changing groups starts a fresh conversation.
-3. The AI can run up to five SELECT queries, receiving the rows or error after each step before deciding whether to query again. The server validates every query and runs it in a read-only transaction. Query results are sent to OpenRouter and the selected model. The final answer uses a small declarative view description rendered by React as tables, metrics, or optionally animated bar charts. Generated JavaScript is never executed. SQL steps remain available in a collapsed detail panel.
+3. The AI can run up to five SELECT queries, receiving the rows or error after each step before deciding whether to query again. The server validates every query and runs it in a read-only transaction. Query results are sent to OpenRouter and the selected model. The final answer uses a small declarative view description rendered by React as tables, metrics, or optionally animated bar charts. By default, generated JavaScript is never executed. Enable **Free visualization** beside Send to let the AI write its own HTML, CSS, and JavaScript mini webpage. It runs inside a [sandboxed iframe](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe#sandbox) with scripts enabled but without same-origin access, top-level navigation, popups, or form submission. Its content policy blocks external scripts, resource loads, and fetch requests. Actual query steps are injected as `window.queryResults`. The preview can be resized vertically; its source is available under **View visualization code**. SQL steps remain available in a collapsed detail panel.
 
 Descriptions and groups save to this browser's local storage, separately for each database identity. Credentials stay in an HttpOnly-cookie-backed server memory session. Sessions last eight hours and are lost when the server restarts. Reconnect to refresh the schema; surviving descriptions and groups are retained.
 
@@ -26,7 +26,8 @@ Descriptions and groups save to this browser's local storage, separately for eac
 - `app/api/connect/route.ts`: connect, read the schema, restore a session, disconnect.
 - `app/api/chat/route.ts`: call OpenRouter and execute bounded, read-only queries.
 - `lib/chat.ts`: the query/answer loop and small view format validation.
-- `app/answer-view.tsx`: render the AI-selected views from actual query data.
+- `app/answer-view.tsx`: render the AI-selected views or the isolated mini webpage.
+- `lib/visualization.ts`: prepare the preview document and safely embed query data.
 - `lib/database.ts`: MySQL connection and in-memory sessions.
 - `lib/sql.ts`: SQL parser, table checks, and permitted SQL functions.
 - `lib/types.ts`: table, field, and group types.

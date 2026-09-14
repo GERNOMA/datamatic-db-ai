@@ -505,6 +505,8 @@ pre {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   padding: 10px 12px 12px 17px;
 }
 .context-toggle {
@@ -522,6 +524,7 @@ pre {
   margin-left: 9px;
 }
 .send-controls {
+  margin-left: auto;
   display: flex;
   gap: 12px;
   align-items: center;
@@ -1624,4 +1627,34 @@ h3 {
     padding: 10px 12px;
     font-size: 11px;
   }
+}
+
+.free-visualization-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #63705c;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.free-visualization-toggle input {
+  margin: 0;
+}
+.free-visualization-frame {
+  height: 420px;
+  min-height: 200px;
+  max-height: 900px;
+  resize: vertical;
+  overflow: auto;
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+}
+.free-visualization-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }

@@ -81,6 +81,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [question, setQuestion] = useState("");
+  const [freeVisualization, setFreeVisualization] = useState(false);
   const [results, setResults] = useState<Result[]>([]);
   const [groupEditor, setGroupEditor] = useState<Group | null>(null);
   const [groupTableSearch, setGroupTableSearch] = useState("");
@@ -253,6 +254,7 @@ export default function Home() {
           question: text,
           tables: contextTables,
           history,
+          freeVisualization,
         }),
       });
       const data = await response.json();
@@ -481,6 +483,17 @@ export default function Home() {
                     </button>
                     <div className="send-controls">
                       <span>Enter to send</span>
+                      <label className="free-visualization-toggle">
+                        <input
+                          type="checkbox"
+                          checked={freeVisualization}
+                          disabled={busy}
+                          onChange={(event) =>
+                            setFreeVisualization(event.target.checked)
+                          }
+                        />
+                        Free visualization
+                      </label>
                       <button
                         className="send-button"
                         aria-label="Send question"
