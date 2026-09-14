@@ -89,8 +89,25 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [results, setResults] = useState<Result[]>([]);
   const [groupEditor, setGroupEditor] = useState<Group | null>(null);
+  const [groupTableSearch, setGroupTableSearch] = useState("");
+  const [showAllTables, setShowAllTables] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
+
+  function openGroupEditor(group: Group) {
+    setGroupTableSearch("");
+    setGroupEditor(group);
+  }
+
+  const matchingGroupTables = tables.filter((table) =>
+    table.name.toLowerCase().includes(groupTableSearch.trim().toLowerCase()),
+  );
+  const matchingTables = tables.filter((table) =>
+    table.name.toLowerCase().includes(search.toLowerCase()),
+  );
+  const visibleTables = showAllTables
+    ? matchingTables
+    : matchingTables.slice(0, 10);
 
   function loadConnection(data: Connection) {
     let saved: { tables?: Table[]; groups?: Group[] } = {};
@@ -118,6 +135,7 @@ export default function Home() {
     }));
     setConnection(data);
     setTables(merged);
+    setShowAllTables(false);
     setGroups(restored);
     setSelectedGroups([]);
     setSelectedTable(merged[0]?.name || "");
@@ -522,7 +540,7 @@ export default function Home() {
                   aria-label="Create group"
                   onClick={() => {
                     setTab("Database");
-                    setGroupEditor({
+                    openGroupEditor({
                       id: createGroupId(),
                       name: "",
                       tables: [],
@@ -817,37 +835,47 @@ export default function Home() {
                   className="table-search"
                   placeholder="Search tables…"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setShowAllTables(false);
+                  }}
                 />
                 <div className="section-label">
                   TABLES <span>{tables.length}</span>
                 </div>
-                <div className="table-list">
-                  {tables
-                    .filter((t) =>
-                      t.name.toLowerCase().includes(search.toLowerCase()),
-                    )
-                    .map((t) => (
-                      <button
-                        key={t.name}
-                        className={t.name === selectedTable ? "selected" : ""}
-                        onClick={() => setSelectedTable(t.name)}
-                      >
-                        <Icon name="grid" size={16} />
-                        <span>{t.name}</span>
-                        <small>{t.fields.length}</small>
-                      </button>
-                    ))}
-                  {!tables.filter((t) =>
-                    t.name.toLowerCase().includes(search.toLowerCase()),
-                  ).length && <p className="muted">No tables found.</p>}
+                <div className="table-list" id="database-table-list">
+                  {visibleTables.map((t) => (
+                    <button
+                      key={t.name}
+                      className={t.name === selectedTable ? "selected" : ""}
+                      onClick={() => setSelectedTable(t.name)}
+                    >
+                      <Icon name="grid" size={16} />
+                      <span>{t.name}</span>
+                      <small>{t.fields.length}</small>
+                    </button>
+                  ))}
+                  {matchingTables.length === 0 && (
+                    <p className="muted">No tables found.</p>
+                  )}
                 </div>
+                {matchingTables.length > 10 && (
+                  <button
+                    type="button"
+                    className="table-list-toggle"
+                    aria-expanded={showAllTables}
+                    aria-controls="database-table-list"
+                    onClick={() => setShowAllTables((expanded) => !expanded)}
+                  >
+                    {showAllTables ? "− see less" : "+ see more"}
+                  </button>
+                )}
                 <div className="section-label group-label">
                   GROUPS{" "}
                   <button
                     aria-label="Add group"
                     onClick={() =>
-                      setGroupEditor({
+                      openGroupEditor({
                         id: createGroupId(),
                         name: "",
                         tables: [],
@@ -862,7 +890,7 @@ export default function Home() {
                     className="sidebar-group"
                     key={g.id}
                     onClick={() =>
-                      setGroupEditor({ ...g, tables: [...g.tables] })
+                      openGroupEditor({ ...g, tables: [...g.tables] })
                     }
                   >
                     <Icon name="folder" size={16} />
@@ -873,7 +901,7 @@ export default function Home() {
                 <button
                   className="new-group"
                   onClick={() =>
-                    setGroupEditor({
+                    openGroupEditor({
                       id: createGroupId(),
                       name: "",
                       tables: [],
@@ -916,7 +944,7 @@ export default function Home() {
                           <button
                             className="pill"
                             key={g.id}
-                            onClick={() => setGroupEditor({ ...g })}
+                            onClick={() => openGroupEditor({ ...g })}
                           >
                             <Icon name="folder" size={12} />
                             {g.name}
@@ -1038,8 +1066,15 @@ export default function Home() {
             <div className="section-label">
               INCLUDE TABLES <span>{groupEditor.tables.length} selected</span>
             </div>
+            <input
+              type="search"
+              aria-label="Search tables to include in group"
+              placeholder="Search tables…"
+              value={groupTableSearch}
+              onChange={(e) => setGroupTableSearch(e.target.value)}
+            />
             <div className="modal-tables">
-              {tables.map((t) => (
+              {matchingGroupTables.map((t) => (
                 <label key={t.name}>
                   <input
                     type="checkbox"
@@ -1057,6 +1092,13 @@ export default function Home() {
                   {t.name}
                 </label>
               ))}
+              {matchingGroupTables.length === 0 && (
+                <p className="muted" role="status">
+                  {tables.length === 0
+                    ? "No tables available."
+                    : "No tables match your search."}
+                </p>
+              )}
             </div>
             <div className="modal-actions">
               {groups.some((g) => g.id === groupEditor.id) && (

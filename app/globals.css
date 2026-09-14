@@ -946,6 +946,15 @@ h3 {
   flex-direction: column;
   gap: 4px;
 }
+.table-list-toggle {
+  margin-top: 8px;
+  padding: 8px 10px;
+  color: #48723c;
+  font-size: 11px;
+}
+.table-list-toggle:hover {
+  text-decoration: underline;
+}
 .table-list button,
 .sidebar-group {
   display: flex;
