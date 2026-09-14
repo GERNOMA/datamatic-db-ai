@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createGroupId } from "@/lib/group-id";
-import type { Field, Group, Table } from "@/lib/types";
+import AnswerView from "./answer-view";
+import type { ChatAnswer, Field, Group, Table } from "@/lib/types";
 
 type Connection = {
   name: string;
@@ -12,14 +13,7 @@ type Connection = {
   model: string;
   aiReady: boolean;
 };
-type Result = {
-  question: string;
-  sql?: string;
-  rows?: unknown[];
-  error?: string;
-  duration?: number;
-  truncated?: boolean;
-};
+type Result = { question: string; answer?: ChatAnswer; error?: string };
 type Tab = "Chat" | "Database" | "Connect";
 
 function Icon({ name, size = 18 }: { name: string; size?: number }) {
@@ -241,10 +235,16 @@ export default function Home() {
     setResults((previous) => [...previous, { question: text }]);
     try {
       const history = results
-        .filter((r) => r.sql)
+        .filter((r) => r.answer)
         .flatMap((r) => [
           { role: "user", content: r.question },
-          { role: "assistant", content: r.sql },
+          {
+            role: "assistant",
+            content: JSON.stringify({
+              text: r.answer!.text,
+              queries: r.answer!.steps.map((step) => step.sql),
+            }),
+          },
         ]);
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -259,7 +259,7 @@ export default function Home() {
       if (!response.ok) throw new Error(data.error);
       setResults((previous) => [
         ...previous.slice(0, -1),
-        { question: text, ...data },
+        { question: text, answer: data },
       ]);
     } catch (e) {
       setResults((previous) => [
@@ -375,7 +375,8 @@ export default function Home() {
                   <p>
                     Explore your database in plain English.
                     <br />
-                    Choose your groups, ask a question, and see the raw results.
+                    Choose your groups, ask a question, and explore a clear
+                    answer.
                   </p>
                   <div className="suggestions">
                     {[
@@ -433,31 +434,8 @@ export default function Home() {
                             <p className="query-error" role="alert">
                               {result.error}
                             </p>
-                          ) : result.sql ? (
-                            <>
-                              <details className="sql">
-                                <summary>
-                                  View generated SQL{" "}
-                                  <span>SELECT · read only</span>
-                                </summary>
-                                <pre>{result.sql}</pre>
-                              </details>
-                              <div className="result-label">
-                                <span>RAW RESULT</span>
-                                <span>
-                                  {result.rows?.length} rows · {result.duration}{" "}
-                                  ms
-                                </span>
-                              </div>
-                              <pre className="raw-result">
-                                {JSON.stringify(result.rows, null, 2)}
-                              </pre>
-                              {result.truncated && (
-                                <p className="muted">
-                                  Result limited to 500 rows or 2 MB.
-                                </p>
-                              )}
-                            </>
+                          ) : result.answer ? (
+                            <AnswerView answer={result.answer} />
                           ) : (
                             <p className="thinking">
                               Generating and running your query…
@@ -516,7 +494,7 @@ export default function Home() {
                 <div className="composer-note">
                   <span>
                     <Icon name="shield" size={12} />
-                    Read-only queries. Results are never sent to AI.
+                    Read-only queries. Query results are shared with AI.
                   </span>
                   <span>Powered by OpenRouter</span>
                 </div>
@@ -532,7 +510,7 @@ export default function Home() {
               <p>
                 Select the groups you want to explore.
                 <br />
-                Only their schema is shared with AI.
+                Their schema and query results are shared with AI.
               </p>
               <div className="section-label">
                 YOUR GROUPS{" "}
@@ -761,7 +739,7 @@ export default function Home() {
                 [
                   "03",
                   "Let curiosity lead",
-                  "Choose a group and ask a question. Get the query and its raw results.",
+                  "Choose a group and ask a question. Get a clear answer with tables or charts.",
                 ],
               ].map(([n, title, text]) => (
                 <div className="guide-step" key={n}>
@@ -777,8 +755,9 @@ export default function Home() {
                 <h3>Built to look, never change.</h3>
                 <p>
                   Queries are validated and run in a read-only transaction. Only
-                  your selected schema and questions go to the model; result
-                  rows are never sent back.
+                  your selected schema, questions, and bounded query results go
+                  to the model so it can explain the data and choose a useful
+                  view.
                 </p>
                 <p>
                   Credentials are held in a server session for up to 8 hours,

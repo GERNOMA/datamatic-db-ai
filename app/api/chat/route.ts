@@ -1,11 +1,11 @@
 import { checkOrigin, getSession, openDatabase } from "@/lib/database";
 import { validateQuery } from "@/lib/sql";
-import type { Table } from "@/lib/types";
+import { CHAT_PROMPT, runChat, type Message } from "@/lib/chat";
+import type { QueryStep, Table } from "@/lib/types";
 import type { Connection as MySQLConnection } from "mysql2";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  let connection;
   try {
     checkOrigin(request);
     const session = await getSession();
@@ -45,88 +45,69 @@ export async function POST(request: Request) {
         }),
       };
     });
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: AbortSignal.timeout(60000),
-        body: JSON.stringify({
-          model: session.model,
-          temperature: 0,
-          max_tokens: 2000,
-          messages: [
-            {
-              role: "system",
-              content:
-                "Return ONLY one read-only MySQL query, without markdown or explanation. Use only the supplied tables and columns. Use unqualified table names. If the question cannot be answered explain why.",
+    const messages: Message[] = [
+      { role: "system", content: CHAT_PROMPT },
+      { role: "system", content: JSON.stringify({ tables: schema }) },
+      ...(Array.isArray(body.history)
+        ? body.history
+            .slice(-6)
+            .filter(
+              (m: Message) =>
+                m &&
+                ["user", "assistant"].includes(m.role) &&
+                typeof m.content === "string",
+            )
+            .map((m: Message) => ({
+              role: m.role,
+              content: m.content.slice(0, 8000),
+            }))
+        : []),
+      { role: "user", content: body.question },
+    ];
+    const signal = AbortSignal.any([
+      request.signal,
+      AbortSignal.timeout(180000),
+    ]);
+    const answer = await runChat(
+      messages,
+      async (messages) => {
+        const response = await fetch(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${session.apiKey}`,
+              "Content-Type": "application/json",
             },
-            { role: "system", content: JSON.stringify({ tables: schema }) },
-            ...(Array.isArray(body.history)
-              ? body.history
-                  .slice(-6)
-                  .filter(
-                    (m: { role: string; content: string }) =>
-                      ["user", "assistant"].includes(m.role) &&
-                      typeof m.content === "string",
-                  )
-                  .map((m: { role: string; content: string }) => ({
-                    role: m.role,
-                    content: m.content.slice(0, 8000),
-                  }))
-              : []),
-            { role: "user", content: body.question },
-          ],
-        }),
+            signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
+            body: JSON.stringify({
+              model: session.model,
+              temperature: 0,
+              max_tokens: 3000,
+              messages,
+            }),
+          },
+        );
+        if (!response.ok)
+          throw new Error(
+            `OpenRouter request failed (${response.status}). Check your API key, credits and model in Connect.`,
+          );
+        const completion = await response.json();
+        const content = completion.choices?.[0]?.message?.content;
+        if (typeof content !== "string")
+          throw new Error("The model returned no answer. Try again.");
+        return content;
+      },
+      async (sql) => {
+        signal.throwIfAborted();
+        return executeQuery(
+          sql,
+          schema.map((t: Table) => t.name),
+          session.url,
+        );
       },
     );
-    if (!response.ok)
-      throw new Error(
-        `OpenRouter request failed (${response.status}). Check your API key, credits and model in Connect.`,
-      );
-    const completion = await response.json();
-    const content = completion.choices?.[0]?.message?.content;
-    if (typeof content !== "string")
-      throw new Error("The model did not return a query. Try again.");
-    const sql = validateQuery(
-      content,
-      schema.map((t: Table) => t.name),
-    );
-    connection = await openDatabase(session.url);
-    await connection.query("SET SESSION MAX_EXECUTION_TIME = 10000");
-    await connection.query("SET SESSION SQL_SELECT_LIMIT = 501");
-    await connection.query("START TRANSACTION READ ONLY");
-    const started = Date.now();
-    // Stream rows so an explicit large LIMIT cannot make the server buffer unlimited results.
-    const rows: unknown[] = [];
-    // mysql2's promise connection exposes its underlying streaming connection.
-    const rawConnection = (
-      connection as unknown as { connection: MySQLConnection }
-    ).connection;
-    const stream = rawConnection.query(sql).stream({ highWaterMark: 1 });
-    let bytes = 0;
-    let truncated = false;
-    for await (const row of stream) {
-      bytes += Buffer.byteLength(JSON.stringify(row));
-      if (rows.length === 500 || bytes > 2_000_000) {
-        truncated = true;
-        stream.destroy();
-        connection.destroy();
-        connection = undefined;
-        break;
-      }
-      rows.push(row);
-    }
-    if (connection) await connection.query("ROLLBACK");
-    return Response.json({
-      sql,
-      rows,
-      truncated,
-      duration: Date.now() - started,
-    });
+    return Response.json(answer);
   } catch (error) {
     const message =
       error instanceof Error
@@ -140,6 +121,53 @@ export async function POST(request: Request) {
       },
       { status: 400 },
     );
+  }
+}
+
+// Every step gets its own bounded, read-only connection, closed before calling AI again.
+async function executeQuery(
+  input: string,
+  tables: string[],
+  url: string,
+): Promise<QueryStep> {
+  const started = Date.now();
+  let connection;
+  let sql = input;
+  const rows: Record<string, unknown>[] = [];
+  let truncated = false;
+  try {
+    sql = validateQuery(input, tables);
+    connection = await openDatabase(url);
+    await connection.query("SET SESSION MAX_EXECUTION_TIME = 10000");
+    await connection.query("SET SESSION SQL_SELECT_LIMIT = 501");
+    await connection.query("START TRANSACTION READ ONLY");
+    const rawConnection = (
+      connection as unknown as { connection: MySQLConnection }
+    ).connection;
+    const stream = rawConnection.query(sql).stream({ highWaterMark: 1 });
+    let bytes = 0;
+    for await (const row of stream) {
+      bytes += Buffer.byteLength(JSON.stringify(row));
+      if (rows.length === 500 || bytes > 100_000) {
+        truncated = true;
+        stream.destroy();
+        connection.destroy();
+        connection = undefined;
+        break;
+      }
+      rows.push(row);
+    }
+    if (connection) await connection.query("ROLLBACK");
+    return { sql, rows, truncated, duration: Date.now() - started };
+  } catch (error) {
+    // Return query failures to the AI so it can correct its next attempt.
+    return {
+      sql,
+      rows: [],
+      truncated: false,
+      duration: Date.now() - started,
+      error: error instanceof Error ? error.message : "Query failed.",
+    };
   } finally {
     await connection?.end();
   }

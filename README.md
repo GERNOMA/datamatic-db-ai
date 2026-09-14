@@ -14,8 +14,8 @@ Open http://localhost:3000. In **Connect**, enter a MySQL URL, an OpenRouter API
 Alternatively, set `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` in `.env.local` before starting the app. The form's nonempty values take precedence.
 
 1. **Database:** select a table and describe it and its fields. Create groups such as Workers containing workers, company, and workers_route. Edit or delete groups by clicking their names.
-2. **Chat:** select one or more groups and ask a question. The model receives a JSON schema containing only selected table names, field names/types, and descriptions when present, alongside your questions and prior generated SQL. Changing groups starts a fresh conversation.
-3. The server validates the single SELECT, executes it in a read-only transaction, and displays the raw JSON rows and generated SQL. Result rows are never sent to the model.
+2. **Chat:** select one or more groups and ask a question. The model receives a JSON schema containing only selected table names, field names/types, and descriptions when present, alongside your questions and prior answers and SQL. Changing groups starts a fresh conversation.
+3. The AI can run up to five SELECT queries, receiving the rows or error after each step before deciding whether to query again. The server validates every query and runs it in a read-only transaction. Query results are sent to OpenRouter and the selected model. The final answer uses a small declarative view description rendered by React as tables, metrics, or optionally animated bar charts. Generated JavaScript is never executed. SQL steps remain available in a collapsed detail panel.
 
 Descriptions and groups save to this browser's local storage, separately for each database identity. Credentials stay in an HttpOnly-cookie-backed server memory session. Sessions last eight hours and are lost when the server restarts. Reconnect to refresh the schema; surviving descriptions and groups are retained.
 
@@ -24,14 +24,16 @@ Descriptions and groups save to this browser's local storage, separately for eac
 - `app/page.tsx`: the three screens and their state, with direct fetch calls.
 - `app/globals.css`: all responsive styling.
 - `app/api/connect/route.ts`: connect, read the schema, restore a session, disconnect.
-- `app/api/chat/route.ts`: send schema to OpenRouter, validate SQL, run it, return rows.
+- `app/api/chat/route.ts`: call OpenRouter and execute bounded, read-only queries.
+- `lib/chat.ts`: the query/answer loop and small view format validation.
+- `app/answer-view.tsx`: render the AI-selected views from actual query data.
 - `lib/database.ts`: MySQL connection and in-memory sessions.
 - `lib/sql.ts`: SQL parser, table checks, and permitted SQL functions.
 - `lib/types.ts`: table, field, and group types.
 
 ## Query limits and deployment
 
-Only single SELECT statements are accepted. Cross-database references, unselected tables, comments, variables, file access, locks, and unknown functions are rejected. Basic joins, subqueries, and aggregate functions are supported; advanced SQL that the parser cannot validate is rejected. Queries get a ten-second MySQL execution limit; results stop at 500 rows or approximately 2 MB. The database account's SELECT-only grants remain the final permission boundary.
+Only single SELECT statements are accepted. Cross-database references, unselected tables, comments, variables, file access, locks, and unknown functions are rejected. Basic joins, subqueries, and aggregate functions are supported; advanced SQL that the parser cannot validate is rejected. Queries get a ten-second MySQL execution limit; results stop at 500 rows or 100 KB per step. Each question allows five queries, up to eight model calls (including format corrections), and a three-minute overall deadline checked between steps and during model requests. A query already running may take its remaining ten-second SQL limit. Truncated data is marked in the answer. The model can answer without querying when no database lookup is needed. The database account's SELECT-only grants remain the final permission boundary.
 
 This is a local or trusted, single-server application. It deliberately has no account system or distributed session store. Do not expose it as a public service without adding access control and restrictions on database destinations. For production on one server: `npm run build` then `npm start`.
 
