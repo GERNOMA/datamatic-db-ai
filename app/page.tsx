@@ -3,6 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createGroupId } from "@/lib/group-id";
+import {
+  emptyWorkspace,
+  parseWorkspace,
+  readWorkspace,
+  WORKSPACE_KEY,
+  type Workspace,
+} from "@/lib/workspace";
 import AnswerView from "./answer-view";
 import type { ChatAnswer, Field, Group, Table } from "@/lib/types";
 
@@ -87,6 +94,15 @@ export default function Home() {
   const [groupTableSearch, setGroupTableSearch] = useState("");
   const [showAllTables, setShowAllTables] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const storageLoaded = useRef(false);
+  const workspace = useRef<Workspace>(emptyWorkspace());
+  const [savedConnections, setSavedConnections] = useState<
+    Workspace["connections"]
+  >([]);
+  const [ready, setReady] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [transferMessage, setTransferMessage] = useState("");
+  const importInput = useRef<HTMLInputElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
   function openGroupEditor(group: Group) {
@@ -104,15 +120,13 @@ export default function Home() {
     ? matchingTables
     : matchingTables.slice(0, 10);
 
-  function loadConnection(data: Connection) {
-    let saved: { tables?: Table[]; groups?: Group[] } = {};
-    try {
-      saved = JSON.parse(localStorage.getItem(`datamatic:${data.id}`) || "{}");
-    } catch {
-      /* Start fresh if browser storage is unavailable. */
-    }
+  function loadConnection(
+    data: Connection,
+    credentials?: { url: string; apiKey: string },
+  ) {
+    const saved = workspace.current.connections.find((c) => c.id === data.id);
     const merged = data.tables.map((t) => {
-      const previous = saved.tables?.find((old) => old.name === t.name);
+      const previous = saved?.tables?.find((old) => old.name === t.name);
       return {
         ...t,
         description: previous?.description || "",
@@ -124,44 +138,170 @@ export default function Home() {
         })),
       };
     });
-    const restored = (saved.groups || []).map((g) => ({
+    const restored = (saved?.groups || []).map((g) => ({
       ...g,
       tables: g.tables.filter((name) => merged.some((t) => t.name === name)),
     }));
+    workspace.current = {
+      ...workspace.current,
+      activeConnectionId: data.id,
+      connections: [
+        ...workspace.current.connections.filter((c) => c.id !== data.id),
+        {
+          id: data.id,
+          name: data.name,
+          model: data.model,
+          url: credentials?.url ?? saved?.url ?? "",
+          apiKey: credentials?.apiKey ?? saved?.apiKey ?? "",
+          tables: merged,
+          groups: restored,
+          selectedGroups: saved?.selectedGroups ?? [],
+        },
+      ],
+    };
+    setSavedConnections(workspace.current.connections);
     setConnection(data);
     setTables(merged);
     setShowAllTables(false);
     setGroups(restored);
-    setSelectedGroups([]);
+    setSelectedGroups(saved?.selectedGroups ?? []);
     setSelectedTable(merged[0]?.name || "");
     setModel(data.model);
     setResults([]);
   }
 
   useEffect(() => {
-    fetch("/api/connect")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.id) loadConnection(data);
-      })
-      .catch(() =>
-        setError("No se pudo restablecer la conexión. Vuelve a conectarte."),
-      );
+    let cancelled = false;
+    async function restore() {
+      try {
+        workspace.current = readWorkspace(localStorage);
+        storageLoaded.current = true;
+        setSavedConnections(workspace.current.connections);
+        setFreeVisualization(workspace.current.freeVisualization);
+        const saved = workspace.current.connections.find(
+          (c) => c.id === workspace.current.activeConnectionId,
+        );
+        setUrl(saved?.url ?? "");
+        setApiKey(saved?.apiKey ?? "");
+        setModel(saved?.model ?? "openrouter/auto");
+        const response = await fetch("/api/connect");
+        const data = await response.json();
+        if (!cancelled && data.id) loadConnection(data);
+      } catch {
+        if (!cancelled)
+          setSaveError(
+            "No se pudo restaurar el espacio guardado. Puedes importar una copia JSON.",
+          );
+        return;
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    }
+    void restore();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    if (!connection) return;
+    if (!ready) return;
+    const next = {
+      ...workspace.current,
+      freeVisualization,
+      connections: workspace.current.connections.map((c) =>
+        c.id === connection?.id
+          ? {
+              ...c,
+              tables,
+              groups,
+              selectedGroups: selectedGroups.filter((id) =>
+                groups.some((g) => g.id === id),
+              ),
+            }
+          : c,
+      ),
+    };
+    workspace.current = next;
+    setSavedConnections(next.connections);
+    if (!storageLoaded.current) return;
     try {
-      localStorage.setItem(
-        `datamatic:${connection.id}`,
-        JSON.stringify({ tables, groups }),
-      );
+      localStorage.setItem(WORKSPACE_KEY, JSON.stringify(next));
+      setSaveError("");
     } catch {
-      setError(
-        "El almacenamiento del navegador no está disponible. Las descripciones y los grupos se perderán al recargar la página.",
+      setSaveError(
+        "No se pudo guardar en este navegador. Exporta el JSON para conservar tus cambios.",
       );
     }
-  }, [tables, groups, connection]);
+  }, [tables, groups, selectedGroups, connection, freeVisualization, ready]);
+
+  function exportWorkspace() {
+    const blob = new Blob([JSON.stringify(workspace.current, null, 2)], {
+      type: "application/json",
+    });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = "datamatic-workspace.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+  }
+
+  async function importWorkspace(file: File) {
+    setBusy(true);
+    setError("");
+    setTransferMessage("");
+    try {
+      if (file.size > 5 * 1024 * 1024)
+        throw new Error("El JSON no puede superar los 5 MB.");
+      const imported = parseWorkspace(await file.text());
+      // Check storage before ending the current session; rollback if disconnect fails.
+      const previous = localStorage.getItem(WORKSPACE_KEY);
+      localStorage.setItem(WORKSPACE_KEY, JSON.stringify(imported));
+      try {
+        const response = await fetch("/api/connect", { method: "DELETE" });
+        if (!response.ok)
+          throw new Error(
+            "No se pudo cerrar la conexión actual. Inténtalo de nuevo.",
+          );
+      } catch (error) {
+        if (previous === null) localStorage.removeItem(WORKSPACE_KEY);
+        else localStorage.setItem(WORKSPACE_KEY, previous);
+        throw error;
+      }
+      storageLoaded.current = true;
+      workspace.current = imported;
+      setSavedConnections(imported.connections);
+      setConnection(null);
+      setTables([]);
+      setGroups([]);
+      setSelectedGroups([]);
+      setSelectedTable("");
+      setResults([]);
+      setQuestion("");
+      setGroupEditor(null);
+      setSearch("");
+      setFreeVisualization(imported.freeVisualization);
+      const saved =
+        imported.connections.find(
+          (c) => c.id === imported.activeConnectionId,
+        ) ?? imported.connections[0];
+      setUrl(saved?.url ?? "");
+      setApiKey(saved?.apiKey ?? "");
+      setModel(saved?.model ?? "openrouter/auto");
+      setSaveError("");
+      setTransferMessage(
+        "JSON importado. Se ha reemplazado el espacio guardado. Conecta una de las conexiones importadas para continuar.",
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "No se pudo importar el JSON.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
@@ -179,7 +319,7 @@ export default function Home() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
-      loadConnection(data);
+      loadConnection(data, { url, apiKey });
       setUrl("");
       setApiKey("");
       setTab("Database");
@@ -197,6 +337,7 @@ export default function Home() {
       const response = await fetch("/api/connect", { method: "DELETE" });
       if (!response.ok)
         throw new Error("No se pudo desconectar. Inténtalo de nuevo.");
+      workspace.current = { ...workspace.current, activeConnectionId: null };
       setConnection(null);
       setTables([]);
       setGroups([]);
@@ -308,13 +449,7 @@ export default function Home() {
         <nav aria-label="Navegación principal">
           {(["Chat", "Database", "Connect"] as Tab[]).map((item) => (
             <button
-              key={
-                {
-                  Chat: "Chat",
-                  Database: "Base de datos",
-                  Connect: "Conectar",
-                }[item]
-              }
+              key={item}
               disabled={busy}
               className={tab === item ? "nav-item active" : "nav-item"}
               onClick={() => {
@@ -323,7 +458,13 @@ export default function Home() {
               }}
             >
               <Icon name={item.toLowerCase()} />
-              {item}
+              {
+                {
+                  Chat: "Chat",
+                  Database: "Base de Datos",
+                  Connect: "Conectarse",
+                }[item]
+              }
             </button>
           ))}
         </nav>
@@ -337,6 +478,11 @@ export default function Home() {
           <span className="status-chevron">⌄</span>
         </button>
       </header>
+      {saveError && (
+        <div className="error-banner" role="alert">
+          {saveError}
+        </div>
+      )}
       {error && (
         <div className="error-banner" role="alert">
           {error}
@@ -744,7 +890,10 @@ export default function Home() {
                 Introduce el ID de un modelo disponible en tu cuenta de
                 OpenRouter.
               </p>
-              <button className="button primary connect-button" disabled={busy}>
+              <button
+                className="button primary connect-button"
+                disabled={busy || !ready}
+              >
                 {busy
                   ? "Conectando…"
                   : connection
@@ -752,6 +901,77 @@ export default function Home() {
                     : "Conectar base de datos"}
                 <span>→</span>
               </button>
+              <div className="form-divider" />
+              <h3>Espacio guardado</h3>
+              {savedConnections.length > 0 && (
+                <label className="form-label">
+                  Conexiones guardadas
+                  <select
+                    value=""
+                    disabled={busy || !ready}
+                    onChange={(event) => {
+                      const saved = workspace.current.connections.find(
+                        (c) => c.id === event.target.value,
+                      );
+                      if (saved) {
+                        setUrl(saved.url);
+                        setApiKey(saved.apiKey);
+                        setModel(saved.model);
+                      }
+                    }}
+                  >
+                    <option value="" disabled>
+                      Selecciona una conexión para rellenar el formulario
+                    </option>
+                    {savedConnections.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} · {c.id}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <p className="field-help" id="json-help">
+                Guarda conexiones, modelos, descripciones y grupos. El JSON
+                incluye las contraseñas y claves API introducidas. Importar
+                reemplaza todo el espacio actual.
+              </p>
+              <input
+                ref={importInput}
+                type="file"
+                accept=".json,application/json"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void importWorkspace(file);
+                }}
+              />
+              <div className="workspace-actions">
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy || !ready}
+                  aria-describedby="json-help"
+                  onClick={() => importInput.current?.click()}
+                >
+                  Importar JSON
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy || !ready}
+                  aria-describedby="json-help"
+                  onClick={exportWorkspace}
+                >
+                  Exportar JSON
+                </button>
+              </div>
+              {transferMessage && (
+                <p className="field-help" role="status">
+                  {transferMessage}
+                </p>
+              )}
             </form>
             <div className="setup-guide">
               <span className="eyebrow">DE LA CONEXIÓN A LA CONVERSACIÓN</span>
@@ -791,8 +1011,10 @@ export default function Home() {
                   útil.
                 </p>
                 <p>
-                  Las credenciales se guardan en una sesión del servidor durante
-                  un máximo de 8 horas, no en el almacenamiento del navegador.
+                  Las conexiones y sus credenciales se guardan en este navegador
+                  y se incluyen al exportar el JSON. Las sesiones del servidor
+                  caducan a las 8 horas; puedes reconectar con un perfil
+                  guardado.
                 </p>
               </div>
             </div>
@@ -810,7 +1032,9 @@ export default function Home() {
             {connection && (
               <span className="save-status">
                 <Icon name="check" size={14} />
-                Guardado en este navegador
+                {saveError
+                  ? "Cambios sin guardar"
+                  : "Guardado en este navegador"}
               </span>
             )}
           </div>

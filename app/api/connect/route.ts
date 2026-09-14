@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     const model =
       typeof body.model === "string" && body.model.trim()
         ? body.model.trim()
-        : process.env.OPENROUTER_MODEL || "openrouter/auto";
+        : process.env.OPENROUTER_MODEL || "openai/gpt-5.6-sol";
     const token = randomUUID();
     const cookieStore = await cookies();
     const old = cookieStore.get("datamatic-session")?.value;
