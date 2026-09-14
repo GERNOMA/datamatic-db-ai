@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { createGroupId } from "@/lib/group-id";
 import type { Field, Group, Table } from "@/lib/types";
 
 type Connection = {
@@ -522,7 +523,7 @@ export default function Home() {
                   onClick={() => {
                     setTab("Database");
                     setGroupEditor({
-                      id: crypto.randomUUID(),
+                      id: createGroupId(),
                       name: "",
                       tables: [],
                     });
@@ -847,7 +848,7 @@ export default function Home() {
                     aria-label="Add group"
                     onClick={() =>
                       setGroupEditor({
-                        id: crypto.randomUUID(),
+                        id: createGroupId(),
                         name: "",
                         tables: [],
                       })
@@ -873,7 +874,7 @@ export default function Home() {
                   className="new-group"
                   onClick={() =>
                     setGroupEditor({
-                      id: crypto.randomUUID(),
+                      id: createGroupId(),
                       name: "",
                       tables: [],
                     })
