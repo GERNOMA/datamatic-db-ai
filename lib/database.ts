@@ -54,8 +54,4 @@ export async function openDatabase(connectionUrl: string) {
   });
 }
 
-export function checkOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin)
-    throw new Error("Invalid request origin.");
-}
+export { checkOrigin } from "./request-origin";
