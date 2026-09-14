@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Datamatic
 
-## Getting Started
+A small Next.js app for asking questions about a MySQL database through OpenRouter.
 
-First, run the development server:
+## Run
 
-```bash
+```sh
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. In **Connect**, enter a MySQL URL, an OpenRouter API key, and a model ID (defaults to `openrouter/auto`). Use a database account granted only SELECT on the database you want to explore. MySQL 8 is recommended. For verified TLS, append `?ssl=true` to the URL. URL-encode special characters in usernames and passwords.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Alternatively, set `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` in `.env.local` before starting the app. The form's nonempty values take precedence.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Database:** select a table and describe it and its fields. Create groups such as Workers containing workers, company, and workers_route. Edit or delete groups by clicking their names.
+2. **Chat:** select one or more groups and ask a question. The model receives a JSON schema containing only selected table names, field names/types, and descriptions when present, alongside your questions and prior generated SQL. Changing groups starts a fresh conversation.
+3. The server validates the single SELECT, executes it in a read-only transaction, and displays the raw JSON rows and generated SQL. Result rows are never sent to the model.
 
-## Learn More
+Descriptions and groups save to this browser's local storage, separately for each database identity. Credentials stay in an HttpOnly-cookie-backed server memory session. Sessions last eight hours and are lost when the server restarts. Reconnect to refresh the schema; surviving descriptions and groups are retained.
 
-To learn more about Next.js, take a look at the following resources:
+## Plain code layout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `app/page.tsx`: the three screens and their state, with direct fetch calls.
+- `app/globals.css`: all responsive styling.
+- `app/api/connect/route.ts`: connect, read the schema, restore a session, disconnect.
+- `app/api/chat/route.ts`: send schema to OpenRouter, validate SQL, run it, return rows.
+- `lib/database.ts`: MySQL connection and in-memory sessions.
+- `lib/sql.ts`: SQL parser, table checks, and permitted SQL functions.
+- `lib/types.ts`: table, field, and group types.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Query limits and deployment
 
-## Deploy on Vercel
+Only single SELECT statements are accepted. Cross-database references, unselected tables, comments, variables, file access, locks, and unknown functions are rejected. Basic joins, subqueries, and aggregate functions are supported; advanced SQL that the parser cannot validate is rejected. Queries get a ten-second MySQL execution limit; results stop at 500 rows or approximately 2 MB. The database account's SELECT-only grants remain the final permission boundary.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This is a local or trusted, single-server application. It deliberately has no account system or distributed session store. Do not expose it as a public service without adding access control and restrictions on database destinations. For production on one server: `npm run build` then `npm start`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Checks
+
+```sh
+npm run lint
+npm test
+npm run build
+```
+
+A live MySQL database and a funded OpenRouter key are required to verify real model-generated results. OpenRouter integration follows its [chat completions API](https://openrouter.ai/docs/quickstart).
