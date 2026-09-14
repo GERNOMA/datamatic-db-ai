@@ -145,7 +145,7 @@ export default function Home() {
         if (data.id) loadConnection(data);
       })
       .catch(() =>
-        setError("Unable to restore the connection. Please reconnect."),
+        setError("No se pudo restablecer la conexión. Vuelve a conectarte."),
       );
   }, []);
 
@@ -158,7 +158,7 @@ export default function Home() {
       );
     } catch {
       setError(
-        "Browser storage is unavailable. Descriptions and groups will not survive a refresh.",
+        "El almacenamiento del navegador no está disponible. Las descripciones y los grupos se perderán al recargar la página.",
       );
     }
   }, [tables, groups, connection]);
@@ -184,7 +184,7 @@ export default function Home() {
       setApiKey("");
       setTab("Database");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Connection failed.");
+      setError(e instanceof Error ? e.message : "No se pudo conectar.");
     } finally {
       setBusy(false);
     }
@@ -195,14 +195,15 @@ export default function Home() {
     setError("");
     try {
       const response = await fetch("/api/connect", { method: "DELETE" });
-      if (!response.ok) throw new Error("Could not disconnect. Try again.");
+      if (!response.ok)
+        throw new Error("No se pudo desconectar. Inténtalo de nuevo.");
       setConnection(null);
       setTables([]);
       setGroups([]);
       setSelectedGroups([]);
       setResults([]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not disconnect.");
+      setError(e instanceof Error ? e.message : "No se pudo desconectar.");
     } finally {
       setBusy(false);
     }
@@ -224,7 +225,7 @@ export default function Home() {
     }
     if (!contextTables.length) {
       setError(
-        "Select a group with at least one table before asking a question.",
+        "Selecciona un grupo con al menos una tabla antes de hacer una pregunta.",
       );
       setContextOpen(true);
       return;
@@ -268,7 +269,7 @@ export default function Home() {
         ...previous.slice(0, -1),
         {
           question: text,
-          error: e instanceof Error ? e.message : "Query failed.",
+          error: e instanceof Error ? e.message : "La consulta ha fallado.",
         },
       ]);
     } finally {
@@ -296,7 +297,7 @@ export default function Home() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <Link className="brand" href="/" aria-label="Datamatic home">
+        <Link className="brand" href="/" aria-label="Inicio de Datamatic">
           <span className="brand-mark">
             <i />
             <i />
@@ -304,10 +305,16 @@ export default function Home() {
           </span>
           datamatic<span className="beta">BETA</span>
         </Link>
-        <nav aria-label="Main navigation">
+        <nav aria-label="Navegación principal">
           {(["Chat", "Database", "Connect"] as Tab[]).map((item) => (
             <button
-              key={item}
+              key={
+                {
+                  Chat: "Chat",
+                  Database: "Base de datos",
+                  Connect: "Conectar",
+                }[item]
+              }
               disabled={busy}
               className={tab === item ? "nav-item active" : "nav-item"}
               onClick={() => {
@@ -326,14 +333,14 @@ export default function Home() {
           onClick={() => setTab("Connect")}
         >
           <span className={connection ? "dot green" : "dot"} />
-          {connection ? connection.name : "No database connected"}
+          {connection ? connection.name : "Ninguna base de datos conectada"}
           <span className="status-chevron">⌄</span>
         </button>
       </header>
       {error && (
         <div className="error-banner" role="alert">
           {error}
-          <button aria-label="Dismiss error" onClick={() => setError("")}>
+          <button aria-label="Cerrar error" onClick={() => setError("")}>
             ×
           </button>
         </div>
@@ -343,8 +350,11 @@ export default function Home() {
         <main className="chat-layout">
           <div className="page-bar">
             <div>
-              <h1>Chat with your data</h1>
-              <p>Good questions. Clear answers. Straight from your database.</p>
+              <h1>Conversa con tus datos</h1>
+              <p>
+                Buenas preguntas. Respuestas claras. Directamente de tu base de
+                datos.
+              </p>
             </div>
             <button
               className="button secondary small"
@@ -355,11 +365,11 @@ export default function Home() {
               }}
             >
               <Icon name="plus" size={15} />
-              New chat
+              Nueva conversación
             </button>
           </div>
           <div className="chat-workspace">
-            <section className="conversation" aria-label="Chat conversation">
+            <section className="conversation" aria-label="Conversación">
               {!results.length ? (
                 <div className="welcome">
                   <div className="welcome-icon">
@@ -367,34 +377,34 @@ export default function Home() {
                     <span className="mini-spark">✦</span>
                   </div>
                   <span className="eyebrow">
-                    A LITTLE CURIOSITY GOES A LONG WAY
+                    LA CURIOSIDAD ABRE MUCHAS PUERTAS
                   </span>
                   <h2>
-                    Your data has answers.
+                    Tus datos tienen respuestas.
                     <br />
-                    <span>Just ask.</span>
+                    <span>Solo tienes que preguntar.</span>
                   </h2>
                   <p>
-                    Explore your database in plain English.
+                    Explora tu base de datos en español.
                     <br />
-                    Choose your groups, ask a question, and explore a clear
-                    answer.
+                    Elige tus grupos, haz una pregunta y obtén una respuesta
+                    clara.
                   </p>
                   <div className="suggestions">
                     {[
                       [
-                        "Find an overview",
-                        "How many workers are in each company?",
+                        "Obtén una visión general",
+                        "¿Cuántos trabajadores hay en cada empresa?",
                         "grid",
                       ],
                       [
-                        "Connect the dots",
-                        "Which workers have no assigned route?",
+                        "Relaciona los datos",
+                        "¿Qué trabajadores no tienen una ruta asignada?",
                         "connect",
                       ],
                       [
-                        "Explore a little deeper",
-                        "Show the 10 companies with the most workers.",
+                        "Profundiza un poco más",
+                        "Muestra las 10 empresas con más trabajadores.",
                         "spark",
                       ],
                     ].map(([title, prompt, icon]) => (
@@ -411,7 +421,8 @@ export default function Home() {
                       className="setup-link"
                       onClick={() => setTab("Connect")}
                     >
-                      Connect your first database to get started <span>→</span>
+                      Conecta tu primera base de datos para empezar{" "}
+                      <span>→</span>
                     </button>
                   )}
                 </div>
@@ -420,9 +431,9 @@ export default function Home() {
                   {results.map((result, index) => (
                     <article className="message" key={index}>
                       <div className="user-question">
-                        <span className="avatar">Y</span>
+                        <span className="avatar">T</span>
                         <div>
-                          <small>You</small>
+                          <small>Tú</small>
                           <p>{result.question}</p>
                         </div>
                       </div>
@@ -440,7 +451,7 @@ export default function Home() {
                             <AnswerView answer={result.answer} />
                           ) : (
                             <p className="thinking">
-                              Generating and running your query…
+                              Generando y ejecutando tu consulta…
                             </p>
                           )}
                         </div>
@@ -453,8 +464,8 @@ export default function Home() {
               <div className="composer-wrap">
                 <form className="composer" onSubmit={ask}>
                   <textarea
-                    aria-label="Ask a question about your data"
-                    placeholder="Ask anything about your data…"
+                    aria-label="Haz una pregunta sobre tus datos"
+                    placeholder="Pregunta lo que quieras sobre tus datos…"
                     value={question}
                     maxLength={8000}
                     onChange={(e) => setQuestion(e.target.value)}
@@ -477,12 +488,12 @@ export default function Home() {
                     >
                       <Icon name="folder" size={15} />
                       {selectedGroups.length
-                        ? `${selectedGroups.length} group${selectedGroups.length > 1 ? "s" : ""} selected`
-                        : "Select groups"}
+                        ? `${selectedGroups.length} ${selectedGroups.length === 1 ? "grupo seleccionado" : "grupos seleccionados"}`
+                        : "Seleccionar grupos"}
                       <span>⌄</span>
                     </button>
                     <div className="send-controls">
-                      <span>Enter to send</span>
+                      <span>Intro para enviar</span>
                       <label className="free-visualization-toggle">
                         <input
                           type="checkbox"
@@ -492,11 +503,11 @@ export default function Home() {
                             setFreeVisualization(event.target.checked)
                           }
                         />
-                        Free visualization
+                        Visualización libre
                       </label>
                       <button
                         className="send-button"
-                        aria-label="Send question"
+                        aria-label="Enviar pregunta"
                         disabled={busy || !question.trim()}
                       >
                         <Icon name="arrow" />
@@ -507,9 +518,10 @@ export default function Home() {
                 <div className="composer-note">
                   <span>
                     <Icon name="shield" size={12} />
-                    Read-only queries. Query results are shared with AI.
+                    Consultas de solo lectura. Los resultados se comparten con
+                    la IA.
                   </span>
-                  <span>Powered by OpenRouter</span>
+                  <span>Con tecnología de OpenRouter</span>
                 </div>
               </div>
             </section>
@@ -517,18 +529,19 @@ export default function Home() {
               className={`context-panel ${contextOpen ? "mobile-open" : ""}`}
             >
               <div className="aside-heading">
-                <span>Conversation context</span>
+                <span>Contexto de la conversación</span>
                 <Icon name="folder" size={17} />
               </div>
               <p>
-                Select the groups you want to explore.
+                Selecciona los grupos que quieres explorar.
                 <br />
-                Their schema and query results are shared with AI.
+                Su esquema y los resultados de las consultas se comparten con la
+                IA.
               </p>
               <div className="section-label">
-                YOUR GROUPS{" "}
+                TUS GRUPOS{" "}
                 <button
-                  aria-label="Create group"
+                  aria-label="Crear grupo"
                   onClick={() => {
                     setTab("Database");
                     openGroupEditor({
@@ -568,7 +581,7 @@ export default function Home() {
                       />
                       <span>
                         <strong>{g.name}</strong>
-                        <small>{g.tables.length} tables</small>
+                        <small>{g.tables.length} tablas</small>
                       </span>
                       <Icon name="folder" size={16} />
                     </label>
@@ -579,22 +592,24 @@ export default function Home() {
                   <div className="folder-illustration">
                     <Icon name="folder" size={28} />
                   </div>
-                  <strong>A little context helps</strong>
+                  <strong>Un poco de contexto ayuda</strong>
                   <p>
-                    Organize related tables into groups
+                    Organiza las tablas relacionadas en grupos
                     <br />
-                    to give your questions a focus.
+                    para enfocar tus preguntas.
                   </p>
                   <button
                     onClick={() => setTab(connection ? "Database" : "Connect")}
                   >
-                    {connection ? "Create a group" : "Connect a database"}{" "}
+                    {connection
+                      ? "Crear un grupo"
+                      : "Conectar una base de datos"}{" "}
                     <span>→</span>
                   </button>
                 </div>
               )}
               <div className="context-summary">
-                <span>Tables in context</span>
+                <span>Tablas en contexto</span>
                 <b>{contextTables.length.toString().padStart(2, "0")}</b>
               </div>
               {!!contextTables.length && (
@@ -606,7 +621,7 @@ export default function Home() {
                     </span>
                   ))}
                   <details>
-                    <summary>Preview schema JSON</summary>
+                    <summary>Ver esquema JSON</summary>
                     <pre>
                       {JSON.stringify(
                         {
@@ -634,11 +649,11 @@ export default function Home() {
               <div className="context-tip">
                 <Icon name="spark" size={17} />
                 <p>
-                  <strong>Better context, better answers</strong>Add
-                  descriptions to your tables and fields to help AI understand
-                  your data.
+                  <strong>Mejor contexto, mejores respuestas</strong>Añade
+                  descripciones a tus tablas y campos para ayudar a la IA a
+                  entender tus datos.
                   <button disabled={busy} onClick={() => setTab("Database")}>
-                    Manage your database →
+                    Gestionar tu base de datos →
                   </button>
                 </p>
               </div>
@@ -646,7 +661,7 @@ export default function Home() {
                 className="mobile-done button secondary"
                 onClick={() => setContextOpen(false)}
               >
-                Done
+                Listo
               </button>
             </aside>
           </div>
@@ -657,9 +672,9 @@ export default function Home() {
         <main className="settings-page">
           <div className="page-bar">
             <div>
-              <span className="eyebrow">LET’S MAKE A CONNECTION</span>
-              <h1>Bring your data along.</h1>
-              <p>Your database, a little more approachable.</p>
+              <span className="eyebrow">CONECTEMOS TUS DATOS</span>
+              <h1>Trae tus datos.</h1>
+              <p>Tu base de datos, un poco más accesible.</p>
             </div>
           </div>
           <div className="connect-grid">
@@ -669,21 +684,21 @@ export default function Home() {
                   <Icon name="database" size={22} />
                 </div>
                 <div>
-                  <h2>Connect to MySQL</h2>
-                  <p>One connection. A whole new way to explore.</p>
+                  <h2>Conectar a MySQL</h2>
+                  <p>Una conexión. Una nueva forma de explorar.</p>
                 </div>
               </div>
               {connection && (
                 <div className="connected-notice">
                   <span className="dot green" />
-                  Connected to <strong>{connection.name}</strong>
+                  Conectado a <strong>{connection.name}</strong>
                   <button type="button" disabled={busy} onClick={disconnect}>
-                    Disconnect
+                    Desconectar
                   </button>
                 </div>
               )}
               <label className="form-label" htmlFor="mysql-url">
-                Connection URL
+                URL de conexión
               </label>
               <input
                 id="mysql-url"
@@ -692,19 +707,20 @@ export default function Home() {
                 required
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="mysql://user:password@host:3306/database"
+                placeholder="mysql://usuario:contraseña@servidor:3306/base_de_datos"
               />
               <p className="field-help">
-                Use a MySQL user with SELECT-only permissions. Add ?ssl=true for
-                TLS.
+                Usa un usuario de MySQL con permisos solo de SELECT. Añade
+                ?ssl=true para usar TLS.
               </p>
               <div className="form-divider" />
-              <h3>Meet your AI</h3>
+              <h3>Configura tu IA</h3>
               <p className="muted">
-                Connect an OpenRouter model to translate questions into SQL.
+                Conecta un modelo de OpenRouter para traducir preguntas a SQL.
               </p>
               <label className="form-label" htmlFor="api-key">
-                OpenRouter API key <span>Optional if set on the server</span>
+                Clave API de OpenRouter{" "}
+                <span>Opcional si está configurada en el servidor</span>
               </label>
               <input
                 id="api-key"
@@ -715,7 +731,7 @@ export default function Home() {
                 placeholder="sk-or-v1-…"
               />
               <label className="form-label" htmlFor="model">
-                Model
+                Modelo
               </label>
               <input
                 id="model"
@@ -725,34 +741,35 @@ export default function Home() {
                 placeholder="openrouter/auto"
               />
               <p className="field-help">
-                Enter any model ID available in your OpenRouter account.
+                Introduce el ID de un modelo disponible en tu cuenta de
+                OpenRouter.
               </p>
               <button className="button primary connect-button" disabled={busy}>
                 {busy
-                  ? "Connecting…"
+                  ? "Conectando…"
                   : connection
-                    ? "Reconnect & refresh schema"
-                    : "Connect database"}
+                    ? "Reconectar y actualizar esquema"
+                    : "Conectar base de datos"}
                 <span>→</span>
               </button>
             </form>
             <div className="setup-guide">
-              <span className="eyebrow">FROM CONNECTION TO CONVERSATION</span>
+              <span className="eyebrow">DE LA CONEXIÓN A LA CONVERSACIÓN</span>
               {[
                 [
                   "01",
-                  "Connect your database",
-                  "Securely connect to MySQL with your connection URL.",
+                  "Conecta tu base de datos",
+                  "Conéctate a MySQL de forma segura con tu URL de conexión.",
                 ],
                 [
                   "02",
-                  "Give your data context",
-                  "Describe your tables and fields, then put related tables into groups.",
+                  "Da contexto a tus datos",
+                  "Describe tus tablas y campos y reúne las tablas relacionadas en grupos.",
                 ],
                 [
                   "03",
-                  "Let curiosity lead",
-                  "Choose a group and ask a question. Get a clear answer with tables or charts.",
+                  "Déjate guiar por la curiosidad",
+                  "Elige un grupo y haz una pregunta. Obtén una respuesta clara con tablas o gráficos.",
                 ],
               ].map(([n, title, text]) => (
                 <div className="guide-step" key={n}>
@@ -765,16 +782,17 @@ export default function Home() {
               ))}
               <div className="privacy-note">
                 <Icon name="shield" size={22} />
-                <h3>Built to look, never change.</h3>
+                <h3>Diseñado para consultar, sin modificar.</h3>
                 <p>
-                  Queries are validated and run in a read-only transaction. Only
-                  your selected schema, questions, and bounded query results go
-                  to the model so it can explain the data and choose a useful
-                  view.
+                  Las consultas se validan y se ejecutan en una transacción de
+                  solo lectura. El modelo recibe únicamente el esquema
+                  seleccionado, tus preguntas y los resultados limitados de las
+                  consultas para explicar los datos y elegir una visualización
+                  útil.
                 </p>
                 <p>
-                  Credentials are held in a server session for up to 8 hours,
-                  not in browser storage.
+                  Las credenciales se guardan en una sesión del servidor durante
+                  un máximo de 8 horas, no en el almacenamiento del navegador.
                 </p>
               </div>
             </div>
@@ -786,13 +804,13 @@ export default function Home() {
         <main className="database-page">
           <div className="page-bar">
             <div>
-              <h1>Your database, with context.</h1>
-              <p>Describe what matters. Group what belongs together.</p>
+              <h1>Tu base de datos, con contexto.</h1>
+              <p>Describe lo importante. Agrupa lo que está relacionado.</p>
             </div>
             {connection && (
               <span className="save-status">
                 <Icon name="check" size={14} />
-                Saved in this browser
+                Guardado en este navegador
               </span>
             )}
           </div>
@@ -801,17 +819,17 @@ export default function Home() {
               <div className="welcome-icon">
                 <Icon name="database" size={28} />
               </div>
-              <h2>A home for your data.</h2>
+              <h2>Un lugar para tus datos.</h2>
               <p>
-                Connect your MySQL database to see its tables,
+                Conecta tu base de datos MySQL para ver sus tablas,
                 <br />
-                add descriptions, and create your first group.
+                añadir descripciones y crear tu primer grupo.
               </p>
               <button
                 className="button primary"
                 onClick={() => setTab("Connect")}
               >
-                Connect database <span>→</span>
+                Conectar base de datos <span>→</span>
               </button>
             </div>
           ) : (
@@ -823,9 +841,9 @@ export default function Home() {
                   <span className="dot green" />
                 </div>
                 <input
-                  aria-label="Search tables"
+                  aria-label="Buscar tablas"
                   className="table-search"
-                  placeholder="Search tables…"
+                  placeholder="Buscar tablas…"
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
@@ -833,7 +851,7 @@ export default function Home() {
                   }}
                 />
                 <div className="section-label">
-                  TABLES <span>{tables.length}</span>
+                  TABLAS <span>{tables.length}</span>
                 </div>
                 <div className="table-list" id="database-table-list">
                   {visibleTables.map((t) => (
@@ -848,7 +866,7 @@ export default function Home() {
                     </button>
                   ))}
                   {matchingTables.length === 0 && (
-                    <p className="muted">No tables found.</p>
+                    <p className="muted">No se encontraron tablas.</p>
                   )}
                 </div>
                 {matchingTables.length > 10 && (
@@ -859,13 +877,13 @@ export default function Home() {
                     aria-controls="database-table-list"
                     onClick={() => setShowAllTables((expanded) => !expanded)}
                   >
-                    {showAllTables ? "− see less" : "+ see more"}
+                    {showAllTables ? "− ver menos" : "+ ver más"}
                   </button>
                 )}
                 <div className="section-label group-label">
-                  GROUPS{" "}
+                  GRUPOS{" "}
                   <button
-                    aria-label="Add group"
+                    aria-label="Añadir grupo"
                     onClick={() =>
                       openGroupEditor({
                         id: createGroupId(),
@@ -901,7 +919,7 @@ export default function Home() {
                   }
                 >
                   <Icon name="plus" size={14} />
-                  New group
+                  Nuevo grupo
                 </button>
               </aside>
               <section className="table-details">
@@ -912,22 +930,22 @@ export default function Home() {
                         <Icon name="grid" size={23} />
                       </div>
                       <div>
-                        <span className="eyebrow">TABLE</span>
+                        <span className="eyebrow">TABLA</span>
                         <h2>{currentTable.name}</h2>
                       </div>
                       <span className="pill">
-                        {currentTable.fields.length} fields
+                        {currentTable.fields.length} campos
                       </span>
                     </div>
                     <label className="form-label" htmlFor="table-description">
-                      What’s in this table?
+                      ¿Qué contiene esta tabla?
                     </label>
                     <textarea
                       id="table-description"
                       maxLength={2000}
                       value={currentTable.description || ""}
                       onChange={(e) => describe(e.target.value)}
-                      placeholder="Describe this table to help AI understand your data…"
+                      placeholder="Describe esta tabla para ayudar a la IA a entender tus datos…"
                     />
                     <div className="table-group-tags">
                       {groups
@@ -944,33 +962,33 @@ export default function Home() {
                         ))}
                     </div>
                     <div className="fields-heading">
-                      <h3>Fields</h3>
-                      <span>A little description makes a big difference.</span>
+                      <h3>Campos</h3>
+                      <span>Una breve descripción marca la diferencia.</span>
                     </div>
                     <div className="fields-list">
                       <div className="field-row field-header">
-                        <span>FIELD NAME</span>
-                        <span>TYPE</span>
-                        <span>DESCRIPTION</span>
+                        <span>NOMBRE DEL CAMPO</span>
+                        <span>TIPO</span>
+                        <span>DESCRIPCIÓN</span>
                       </div>
                       {currentTable.fields.map((field) => (
                         <div className="field-row" key={field.name}>
                           <div className="field-name">
                             <code>{field.name}</code>
                             {field.key === "PRI" && (
-                              <small title="Primary key">PK</small>
+                              <small title="Clave primaria">PK</small>
                             )}
                             <span>
-                              {field.nullable ? "nullable" : "required"}
+                              {field.nullable ? "admite nulos" : "obligatorio"}
                             </span>
                           </div>
                           <code className="field-type">{field.type}</code>
                           <input
-                            aria-label={`Description for ${field.name}`}
+                            aria-label={`Descripción de ${field.name}`}
                             maxLength={2000}
                             value={field.description || ""}
                             onChange={(e) => describe(e.target.value, field)}
-                            placeholder="Add a description…"
+                            placeholder="Añade una descripción…"
                           />
                         </div>
                       ))}
@@ -978,7 +996,7 @@ export default function Home() {
                   </>
                 ) : (
                   <p className="muted">
-                    No tables were found in this database.
+                    No se encontraron tablas en esta base de datos.
                   </p>
                 )}
               </section>
@@ -1027,41 +1045,42 @@ export default function Home() {
             <div className="modal-heading">
               <h2 id="group-title">
                 {groups.some((g) => g.id === groupEditor.id)
-                  ? "Edit group"
-                  : "Create a group"}
+                  ? "Editar grupo"
+                  : "Crear un grupo"}
               </h2>
               <button
                 type="button"
-                aria-label="Close group editor"
+                aria-label="Cerrar editor de grupos"
                 onClick={() => setGroupEditor(null)}
               >
                 ×
               </button>
             </div>
             <p className="muted">
-              Bring related tables together for more focused questions.
+              Reúne las tablas relacionadas para hacer preguntas más concretas.
             </p>
             <label className="form-label" htmlFor="group-name">
-              Group name
+              Nombre del grupo
             </label>
             <input
               id="group-name"
               autoFocus
               required
               maxLength={80}
-              placeholder="e.g. Workers"
+              placeholder="p. ej., Trabajadores"
               value={groupEditor.name}
               onChange={(e) =>
                 setGroupEditor({ ...groupEditor, name: e.target.value })
               }
             />
             <div className="section-label">
-              INCLUDE TABLES <span>{groupEditor.tables.length} selected</span>
+              INCLUIR TABLAS{" "}
+              <span>{groupEditor.tables.length} seleccionadas</span>
             </div>
             <input
               type="search"
-              aria-label="Search tables to include in group"
-              placeholder="Search tables…"
+              aria-label="Buscar tablas para incluir en el grupo"
+              placeholder="Buscar tablas…"
               value={groupTableSearch}
               onChange={(e) => setGroupTableSearch(e.target.value)}
             />
@@ -1087,8 +1106,8 @@ export default function Home() {
               {matchingGroupTables.length === 0 && (
                 <p className="muted" role="status">
                   {tables.length === 0
-                    ? "No tables available."
-                    : "No tables match your search."}
+                    ? "No hay tablas disponibles."
+                    : "Ninguna tabla coincide con tu búsqueda."}
                 </p>
               )}
             </div>
@@ -1108,7 +1127,7 @@ export default function Home() {
                     setGroupEditor(null);
                   }}
                 >
-                  Delete group
+                  Eliminar grupo
                 </button>
               )}
               <button
@@ -1116,18 +1135,18 @@ export default function Home() {
                 className="button secondary"
                 onClick={() => setGroupEditor(null)}
               >
-                Cancel
+                Cancelar
               </button>
-              <button className="button primary">Save group</button>
+              <button className="button primary">Guardar grupo</button>
             </div>
           </form>
         </div>
       )}
       <footer className="footer">
-        <span>Made for curious minds.</span>
+        <span>Hecho para mentes curiosas.</span>
         <span>
           <span className="dot green" />
-          Read-only by design
+          Solo lectura por diseño
         </span>
       </footer>
     </div>

@@ -26,7 +26,9 @@ export async function getSession() {
   const session = token ? sessions.get(token) : undefined;
   if (!session || session.expires < Date.now()) {
     if (token) sessions.delete(token);
-    throw new Error("Your connection has expired. Reconnect in Connect.");
+    throw new Error(
+      "Tu conexión ha caducado. Vuelve a conectarte en Conectar.",
+    );
   }
   return session;
 }
@@ -34,7 +36,9 @@ export async function getSession() {
 export async function openDatabase(connectionUrl: string) {
   const url = new URL(connectionUrl);
   if (url.protocol !== "mysql:" || !url.hostname || url.pathname.length < 2) {
-    throw new Error("Use a MySQL URL including a database name.");
+    throw new Error(
+      "Usa una URL de MySQL que incluya el nombre de la base de datos.",
+    );
   }
   return mysql.createConnection({
     host: url.hostname,

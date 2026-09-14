@@ -14,14 +14,14 @@ export default function AnswerView({ answer }: { answer: ChatAnswer }) {
         <>
           <div className="free-visualization-frame">
             <iframe
-              title="Free visualization"
+              title="Visualización libre"
               sandbox="allow-scripts"
               referrerPolicy="no-referrer"
               srcDoc={visualizationDocument(answer.html, answer.steps)}
             />
           </div>
           <details className="sql">
-            <summary>View visualization code</summary>
+            <summary>Ver código de la visualización</summary>
             <pre>{answer.html}</pre>
           </details>
         </>
@@ -88,29 +88,31 @@ export default function AnswerView({ answer }: { answer: ChatAnswer }) {
                 </table>
               </div>
             ) : (
-              <p className="muted">No matching rows.</p>
+              <p className="muted">No hay filas que coincidan.</p>
             )}
           </section>
         );
       })}
       {answer.steps.some((step) => step.truncated) && (
         <p className="muted">
-          Some results were limited to 500 rows or 100 KB. The answer may use
-          incomplete data.
+          Algunos resultados se limitaron a 500 filas o 100 KB. La respuesta
+          puede basarse en datos incompletos.
         </p>
       )}
       {!!answer.steps.length && (
         <details className="sql">
           <summary>
-            View {answer.steps.length} query{" "}
-            {answer.steps.length === 1 ? "step" : "steps"}
-            <span>SELECT · read only</span>
+            Ver {answer.steps.length}{" "}
+            {answer.steps.length === 1
+              ? "paso de consulta"
+              : "pasos de consulta"}
+            <span>SELECT · solo lectura</span>
           </summary>
           {answer.steps.map((step, index) => (
             <div className="query-step" key={index}>
               <small>
-                Step {index + 1} · {step.rows.length} rows · {step.duration} ms
-                {step.truncated ? " · limited" : ""}
+                Paso {index + 1} · {step.rows.length} filas · {step.duration} ms
+                {step.truncated ? " · limitado" : ""}
               </small>
               <pre>{step.sql}</pre>
               {step.error && <p className="query-error">{step.error}</p>}

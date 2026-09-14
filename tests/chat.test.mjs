@@ -76,7 +76,7 @@ test("query and malformed-response loops stop with a useful fallback", async () 
     },
   );
   assert.equal(queries, MAX_QUERIES);
-  assert.ok(result.text.includes("step limit"));
+  assert.ok(result.text.includes("límite de pasos"));
   let calls = 0;
   await runChat(
     [],

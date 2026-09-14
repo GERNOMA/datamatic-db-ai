@@ -17,18 +17,20 @@ export function validateQuery(input: string, tables: string[]) {
       sql,
     )
   ) {
-    throw new Error("Only a single read-only SELECT query is allowed.");
+    throw new Error(
+      "Solo se permite una única consulta SELECT de solo lectura.",
+    );
   }
   let ast;
   try {
     ast = parser.astify(sql, { database: "MySQL" });
   } catch {
     throw new Error(
-      "The model returned SQL that could not be validated. Try rephrasing your question.",
+      "No se pudo validar el SQL devuelto por el modelo. Prueba a reformular tu pregunta.",
     );
   }
   if (Array.isArray(ast) || ast.type !== "select")
-    throw new Error("The model must return a SELECT query.");
+    throw new Error("El modelo debe devolver una consulta SELECT.");
   function check(node: unknown) {
     if (!node || typeof node !== "object") return;
     const value = node as Record<string, unknown>;
@@ -38,7 +40,7 @@ export function validateQuery(input: string, tables: string[]) {
         value.name &&
         "schema" in value.name
       ) {
-        throw new Error("Schema-qualified functions are not allowed.");
+        throw new Error("No se permiten funciones calificadas con un esquema.");
       }
       const name =
         typeof value.name === "string"
@@ -47,7 +49,7 @@ export function validateQuery(input: string, tables: string[]) {
               .map((n) => n.value)
               .join(".");
       if (!functions.has(name.toUpperCase()))
-        throw new Error(`SQL function ${name} is not allowed.`);
+        throw new Error(`La función SQL ${name} no está permitida.`);
     }
     for (const child of Object.values(value)) check(child);
   }
@@ -60,7 +62,7 @@ export function validateQuery(input: string, tables: string[]) {
       !tables.includes(table)
     ) {
       throw new Error(
-        "The query references a table outside the selected groups.",
+        "La consulta hace referencia a una tabla fuera de los grupos seleccionados.",
       );
     }
   }

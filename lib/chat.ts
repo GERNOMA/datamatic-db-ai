@@ -6,6 +6,7 @@ export type Message = {
 };
 export const MAX_QUERIES = 5;
 const QUERY_PROMPT = `Answer questions about the supplied MySQL schema.
+Write all user-facing explanations, view titles, chart labels, and visualization content in Spanish. Preserve actual database identifiers and values, SQL syntax, and the specified JSON keys.
 Return only a JSON object, without markdown. To query, return {"type":"query","sql":"SELECT ..."}.
 Run a query only when needed. You may run up to ${MAX_QUERIES} queries, one at a time.
 Each query result is returned to you before your next decision. Use it to answer or refine your next query.
@@ -181,12 +182,12 @@ export async function runChat(
     }
   }
   return {
-    text: "I couldn't finish a reliable answer within the step limit. Here are the results collected so far; try a more specific question.",
+    text: "No he podido completar una respuesta fiable dentro del límite de pasos. Estos son los resultados obtenidos hasta ahora; prueba con una pregunta más concreta.",
     views: steps
       .flatMap((step, query) =>
         step.error
           ? []
-          : [{ type: "table" as const, title: `Query ${query + 1}`, query }],
+          : [{ type: "table" as const, title: `Consulta ${query + 1}`, query }],
       )
       .slice(-4),
     steps,

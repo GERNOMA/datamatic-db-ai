@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     checkOrigin(request);
     const body = await request.json();
     if (typeof body.url !== "string" || body.url.length > 4000)
-      throw new Error("Enter a valid MySQL connection URL.");
+      throw new Error("Introduce una URL de conexión MySQL válida.");
     connection = await openDatabase(body.url);
     const [columns] = await connection.query<RowDataPacket[]>(
       "SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, COLUMN_KEY, IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME, ORDINAL_POSITION",
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error:
-          "Could not connect. Check the MySQL URL, credentials, network access and SSL setting (?ssl=true).",
+          "No se pudo conectar. Revisa la URL de MySQL, las credenciales, el acceso a la red y la configuración SSL (?ssl=true).",
       },
       { status: 400 },
     );
@@ -110,6 +110,6 @@ export async function DELETE(request: Request) {
     cookieStore.delete("datamatic-session");
     return Response.json({ ok: true });
   } catch {
-    return Response.json({ error: "Could not disconnect." }, { status: 400 });
+    return Response.json({ error: "No se pudo desconectar." }, { status: 400 });
   }
 }

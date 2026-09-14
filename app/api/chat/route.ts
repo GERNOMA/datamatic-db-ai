@@ -11,20 +11,20 @@ export async function POST(request: Request) {
     const session = await getSession();
     const body = await request.json();
     if (!session.apiKey)
-      throw new Error("Add your OpenRouter API key in Connect.");
+      throw new Error("Añade tu clave API de OpenRouter en Conectar.");
     if (
       typeof body.question !== "string" ||
       !body.question.trim() ||
       body.question.length > 8000
     )
-      throw new Error("Enter a question of up to 8,000 characters.");
+      throw new Error("Introduce una pregunta de hasta 8000 caracteres.");
     if (!Array.isArray(body.tables) || !body.tables.length)
-      throw new Error("Select a group containing at least one table.");
+      throw new Error("Selecciona un grupo que contenga al menos una tabla.");
     const schema = body.tables.map((provided: Table) => {
       const actual = session.tables.find((t) => t.name === provided.name);
       if (!actual)
         throw new Error(
-          "A selected table no longer exists. Reconnect to refresh the schema.",
+          "Una tabla seleccionada ya no existe. Vuelve a conectarte para actualizar el esquema.",
         );
       return {
         name: actual.name,
@@ -91,12 +91,14 @@ export async function POST(request: Request) {
         );
         if (!response.ok)
           throw new Error(
-            `OpenRouter request failed (${response.status}). Check your API key, credits and model in Connect.`,
+            `La solicitud a OpenRouter ha fallado (${response.status}). Revisa tu clave API, los créditos y el modelo en Conectar.`,
           );
         const completion = await response.json();
         const content = completion.choices?.[0]?.message?.content;
         if (typeof content !== "string")
-          throw new Error("The model returned no answer. Try again.");
+          throw new Error(
+            "El modelo no devolvió ninguna respuesta. Inténtalo de nuevo.",
+          );
         return content;
       },
       async (sql) => {
@@ -114,11 +116,11 @@ export async function POST(request: Request) {
     const message =
       error instanceof Error
         ? error.message
-        : "Query failed. Please try again.";
+        : "La consulta ha fallado. Inténtalo de nuevo.";
     return Response.json(
       {
         error: /SQL syntax|Unknown column|doesn't exist/i.test(message)
-          ? "The generated query did not match the schema. Try rephrasing your question or adding descriptions."
+          ? "La consulta generada no coincide con el esquema. Prueba a reformular tu pregunta o a añadir descripciones."
           : message,
       },
       { status: 400 },
@@ -168,7 +170,7 @@ async function executeQuery(
       rows: [],
       truncated: false,
       duration: Date.now() - started,
-      error: error instanceof Error ? error.message : "Query failed.",
+      error: error instanceof Error ? error.message : "La consulta ha fallado.",
     };
   } finally {
     await connection?.end();

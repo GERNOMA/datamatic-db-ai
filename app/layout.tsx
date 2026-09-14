@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Datamatic — Chat with your data",
+  title: "Datamatic — Conversa con tus datos",
   description:
-    "Explore your MySQL database in plain English. Add context, choose your tables, and get read-only answers.",
+    "Explora tu base de datos MySQL en español. Añade contexto, elige tus tablas y obtén respuestas de solo lectura.",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body>{children}</body>
     </html>
   );
