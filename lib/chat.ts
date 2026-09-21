@@ -4,8 +4,8 @@ export type Message = {
   role: "system" | "user" | "assistant";
   content: string;
 };
-export const MAX_QUERIES = 5;
-export const MAX_DISCOVERIES = 5;
+export const MAX_QUERIES = 10;
+export const MAX_DISCOVERIES = 10;
 const QUERY_PROMPT = `Answer questions about the supplied MySQL schema.
 Write all user-facing explanations, view titles, chart labels, and visualization content in Spanish. Preserve actual database identifiers and values, SQL syntax, and the specified JSON keys.
 Return only a JSON object, without markdown. To query, return {"type":"query","sql":"SELECT ..."}.
