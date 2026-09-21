@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import type { ChatAnswer } from "@/lib/types";
 import { visualizationDocument } from "@/lib/visualization";
 
@@ -7,6 +10,26 @@ function display(value: unknown): string {
 }
 
 export default function AnswerView({ answer }: { answer: ChatAnswer }) {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    function resize(event: MessageEvent) {
+      const frame = frameRef.current;
+      if (
+        !frame ||
+        event.source !== frame.contentWindow ||
+        event.data?.type !== "visualization-height" ||
+        typeof event.data.height !== "number" ||
+        !Number.isFinite(event.data.height) ||
+        event.data.height <= 0
+      )
+        return;
+      frame.style.height = `${Math.ceil(event.data.height)}px`;
+    }
+    window.addEventListener("message", resize);
+    return () => window.removeEventListener("message", resize);
+  }, []);
+
   return (
     <div className="answer-view">
       <p className="answer-text">{answer.text}</p>
@@ -14,10 +37,17 @@ export default function AnswerView({ answer }: { answer: ChatAnswer }) {
         <>
           <div className="free-visualization-frame">
             <iframe
+              ref={frameRef}
               title="Visualización libre"
               sandbox="allow-scripts"
               referrerPolicy="no-referrer"
               srcDoc={visualizationDocument(answer.html, answer.steps)}
+              onLoad={() =>
+                frameRef.current?.contentWindow?.postMessage(
+                  { type: "visualization-measure" },
+                  "*",
+                )
+              }
             />
           </div>
           <details className="sql">

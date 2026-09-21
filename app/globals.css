@@ -1894,11 +1894,7 @@ h3 {
   margin: 0;
 }
 .free-visualization-frame {
-  height: 420px;
-  min-height: 200px;
-  max-height: 900px;
-  resize: vertical;
-  overflow: auto;
+  overflow: hidden;
   margin-top: 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1907,7 +1903,7 @@ h3 {
 .free-visualization-frame iframe {
   display: block;
   width: 100%;
-  height: 100%;
+  height: 200px;
   border: 0;
 }
 
