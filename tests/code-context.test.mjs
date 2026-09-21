@@ -169,6 +169,44 @@ test("JEV sends full function code in parallel and applies a strict threshold", 
   );
 });
 
+test("JEV function discovery tolerates at most ten percent failed requests", async () => {
+  const source = parseCodeModels(entries)[0];
+  const functions = Array.from({ length: 10 }, (_, id) => ({
+    ...source,
+    id: String(id),
+  }));
+  const fetcher = async (_, init) => {
+    const { function: candidate } = JSON.parse(init.body).state;
+    if (candidate.id === "0") throw new Error("temporary JEV failure");
+    return Response.json({
+      answers: { useful: { type: "noul", noul: 0.9 } },
+    });
+  };
+  const matches = await discoverFunctions(
+    functions,
+    "rest time",
+    "key",
+    new AbortController().signal,
+    0.6,
+    fetcher,
+  );
+  assert.deepEqual(
+    matches.map((candidate) => candidate.id),
+    functions.slice(1).map((candidate) => candidate.id),
+  );
+  await assert.rejects(
+    discoverFunctions(
+      functions.slice(0, 9),
+      "rest time",
+      "key",
+      new AbortController().signal,
+      0.6,
+      fetcher,
+    ),
+    /temporary JEV failure/,
+  );
+});
+
 test("optional function discovery exposes only matching code and supports follow-up context", async () => {
   const selected = [];
   const messages = [

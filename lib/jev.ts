@@ -6,6 +6,26 @@ import {
   type SelectedFunction,
 } from "./code-context.ts";
 
+export const JEV_MAX_ERROR_RATE = 0.1;
+
+async function tolerateJevErrors<T>(
+  requests: Promise<T>[],
+  signal: AbortSignal,
+): Promise<T[]> {
+  const results = await Promise.allSettled(requests);
+  signal.throwIfAborted();
+  const failures = results.filter(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failures.length / results.length > JEV_MAX_ERROR_RATE) {
+    const error = failures[0]?.reason;
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+  return results.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  );
+}
+
 export async function discoverFunctions(
   functions: CodeFunction[],
   purpose: string,
@@ -15,10 +35,8 @@ export async function discoverFunctions(
   fetcher: typeof fetch = fetch,
 ): Promise<SelectedFunction[]> {
   validateFunctionThreshold(threshold);
-  const sweep = new AbortController();
-  signal = AbortSignal.any([signal, sweep.signal]);
   // One parallel decision per unique function; only its complete code and provenance are sent.
-  const results = await Promise.all(
+  const results = await tolerateJevErrors(
     functions.map(async (fn) => {
       signal.throwIfAborted();
       const response = await fetcher(
@@ -56,10 +74,8 @@ export async function discoverFunctions(
       const probability = validateFunctionThreshold(answer.noul);
       return probability > threshold ? { ...fn, probability, purpose } : null;
     }),
-  ).catch((error) => {
-    sweep.abort(error);
-    throw error;
-  });
+    signal,
+  );
   return results.filter((fn): fn is SelectedFunction => fn !== null);
 }
 
@@ -80,10 +96,8 @@ export async function discoverTables(
   if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1)
     throw new Error("El umbral de JEV debe estar entre 0 y 1.");
   const selected = new Set<string>();
-  const sweep = new AbortController();
-  signal = AbortSignal.any([signal, sweep.signal]);
   // Start one independent request for every table at the same time.
-  await Promise.all(
+  await tolerateJevErrors(
     tables
       .filter((table) => !table.notUsed)
       .map(async (table) => {
@@ -129,11 +143,8 @@ export async function discoverTables(
           throw new Error("JEV devolvió una probabilidad no válida.");
         if (answer.noul > threshold) selected.add(table.name);
       }),
-  ).catch((error) => {
-    // Abort the other in-flight requests when any table fails.
-    sweep.abort(error);
-    throw error;
-  });
+    signal,
+  );
   return tables.filter((table) => !table.notUsed && selected.has(table.name));
 }
 

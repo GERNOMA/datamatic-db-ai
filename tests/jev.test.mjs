@@ -243,29 +243,53 @@ test("required discovery blocks SQL and remains compatible with free visualizati
   assert.equal(answer.html, "<main>Listo</main>");
 });
 
-test("a failed fully parallel sweep cancels in-flight work and leaves the existing context intact", async () => {
+test("a sweep tolerates at most ten percent failed table requests", async () => {
   const context = { initialized: true, tables: ["existing"] };
-  let calls = 0;
-  const many = Array.from({ length: 30 }, (_, i) => ({
+  const many = Array.from({ length: 10 }, (_, i) => ({
     ...tables[0],
     name: `table_${i}`,
   }));
+  const selected = await discoverTables(
+    many,
+    "sales",
+    "key",
+    new AbortController().signal,
+    async (_, init) => {
+      const { table } = JSON.parse(init.body).state;
+      if (table.name === "table_0") throw new Error("JEV 429");
+      return Response.json({
+        answers: { useful: { type: "noul", noul: 0.9 } },
+      });
+    },
+  );
+  addDiscoveredTables(context, selected);
+  assert.deepEqual(
+    context.tables,
+    ["existing", ...many.slice(1).map((table) => table.name)],
+  );
+
   await assert.rejects(
     (async () => {
-      const selected = await discoverTables(
+      const failed = await discoverTables(
         many,
         "sales",
         "key",
         new AbortController().signal,
-        async () => {
-          calls++;
-          return new Response("", { status: 429 });
+        async (_, init) => {
+          const { table } = JSON.parse(init.body).state;
+          if (["table_0", "table_1"].includes(table.name))
+            throw new Error("JEV 429");
+          return Response.json({
+            answers: { useful: { type: "noul", noul: 0.9 } },
+          });
         },
       );
-      addDiscoveredTables(context, selected);
+      addDiscoveredTables(context, failed);
     })(),
     /429/,
   );
-  assert.equal(calls, many.length);
-  assert.deepEqual(context.tables, ["existing"]);
+  assert.deepEqual(
+    context.tables,
+    ["existing", ...many.slice(1).map((table) => table.name)],
+  );
 });
