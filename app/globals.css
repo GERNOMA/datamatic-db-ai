@@ -1,5 +1,145 @@
 @import "tailwindcss";
 
+.transform-page {
+  padding-bottom: 48px;
+}
+.transform-eyebrow {
+  color: var(--green);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
+.transform-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 26px;
+  margin-bottom: 20px;
+  display: grid;
+  gap: 18px;
+}
+.transform-card h2 {
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.transform-card p {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.transform-step {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #edf4ee;
+  color: var(--green);
+  font-size: 13px;
+}
+.transform-upload {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px dashed #a4bca9;
+  background: #f8faf6;
+  border-radius: 8px;
+}
+.transform-upload input {
+  background: white;
+}
+.transform-hint {
+  color: #69746b;
+  font-size: 12px;
+}
+.transform-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.transform-stats > div {
+  display: grid;
+  gap: 6px;
+  background: #f4f6f1;
+  padding: 18px;
+  border-radius: 8px;
+}
+.transform-stats strong {
+  font-size: 25px;
+}
+.transform-stats span {
+  color: #69746b;
+  font-size: 12px;
+}
+.transform-error {
+  color: #a14736;
+}
+.transform-success {
+  color: #39735c;
+}
+.transform-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.transform-results {
+  max-height: 520px;
+  overflow: auto;
+}
+.transform-results details {
+  border-top: 1px solid var(--border);
+  padding: 14px 2px;
+}
+.transform-results summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.transform-badge {
+  display: inline-block;
+  margin-left: 14px;
+  padding: 4px 9px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.transform-badge.valid {
+  background: #edf4ee;
+  color: #39735c;
+}
+.transform-badge.invalid {
+  background: #fff1e9;
+  color: #a14736;
+}
+.transform-results ul {
+  list-style: none;
+  padding: 12px 0 0;
+  margin: 0;
+}
+.transform-results li {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 12px;
+  background: #f8faf6;
+  border-bottom: 1px solid white;
+}
+.transform-results code {
+  overflow-wrap: anywhere;
+}
+.transform-results details > p {
+  margin-top: 12px;
+}
+.transform-card > .button {
+  justify-self: start;
+}
+@media (max-width: 640px) {
+  .transform-card {
+    padding: 18px;
+  }
+  .transform-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 :root {
   --background: #fbfcfa;
   --foreground: #26332e;
@@ -1362,6 +1502,7 @@ h3 {
   .topbar nav {
     order: 3;
     width: 100%;
+    flex-wrap: wrap;
     justify-content: center;
   }
   .nav-item {

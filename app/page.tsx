@@ -11,6 +11,8 @@ import {
   type Workspace,
 } from "@/lib/workspace";
 import AnswerView from "./answer-view";
+import TransformPage from "./transform-page";
+import { applyCatalog } from "@/lib/catalog";
 import type { ChatAnswer, Field, Group, Table } from "@/lib/types";
 
 type Connection = {
@@ -21,7 +23,7 @@ type Connection = {
   aiReady: boolean;
 };
 type Result = { question: string; answer?: ChatAnswer; error?: string };
-type Tab = "Chat" | "Database" | "Connect";
+type Tab = "Chat" | "Database" | "Connect" | "Transformar";
 
 function Icon({ name, size = 18 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
@@ -36,6 +38,7 @@ function Icon({ name, size = 18 }: { name: string; size?: number }) {
       <path d="m9 15 6-6m-7 9-1 1a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m0 8a4 4 0 0 0 6 0l5-5a4 4 0 0 0-6-6l-1 1" />
     ),
     arrow: <path d="M12 19V5m-6 6 6-6 6 6" />,
+    transformar: <path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4" />,
     plus: <path d="M12 5v14M5 12h14" />,
     grid: (
       <>
@@ -447,26 +450,29 @@ export default function Home() {
           datamatic<span className="beta">BETA</span>
         </Link>
         <nav aria-label="Navegación principal">
-          {(["Chat", "Database", "Connect"] as Tab[]).map((item) => (
-            <button
-              key={item}
-              disabled={busy}
-              className={tab === item ? "nav-item active" : "nav-item"}
-              onClick={() => {
-                setTab(item);
-                setError("");
-              }}
-            >
-              <Icon name={item.toLowerCase()} />
-              {
+          {(["Chat", "Database", "Connect", "Transformar"] as Tab[]).map(
+            (item) => (
+              <button
+                key={item}
+                disabled={busy}
+                className={tab === item ? "nav-item active" : "nav-item"}
+                onClick={() => {
+                  setTab(item);
+                  setError("");
+                }}
+              >
+                <Icon name={item.toLowerCase()} />
                 {
-                  Chat: "Chat",
-                  Database: "Base de Datos",
-                  Connect: "Conectarse",
-                }[item]
-              }
-            </button>
-          ))}
+                  {
+                    Chat: "Chat",
+                    Database: "Base de Datos",
+                    Connect: "Conectarse",
+                    Transformar: "Transformar",
+                  }[item]
+                }
+              </button>
+            ),
+          )}
         </nav>
         <button
           className="connection-status"
@@ -812,6 +818,27 @@ export default function Home() {
             </aside>
           </div>
         </main>
+      )}
+
+      {tab === "Transformar" && (
+        <TransformPage
+          key={connection?.id ?? "disconnected"}
+          tables={tables}
+          connectionName={connection?.name}
+          onConnect={() => setTab("Connect")}
+          onApply={(catalog, filename) => {
+            if (!connection)
+              throw new Error("Conecta una base de datos primero.");
+            const updated = applyCatalog(catalog, tables);
+            const group = {
+              id: createGroupId(),
+              name: filename,
+              tables: catalog.map((entry) => entry.tabla),
+            };
+            setTables(updated);
+            setGroups((previous) => [...previous, group]);
+          }}
+        />
       )}
 
       {tab === "Connect" && (
