@@ -45,6 +45,7 @@ test("one Decisions request per table, with isolated metadata and a strict confi
         "test-key",
         new AbortController().signal,
         fetcher,
+        0.3,
       )
     ).map((t) => t.name),
     ["orders", "inventory"],
@@ -242,7 +243,7 @@ test("required discovery blocks SQL and remains compatible with free visualizati
   assert.equal(answer.html, "<main>Listo</main>");
 });
 
-test("a failed sweep cancels queued work and leaves the existing context intact", async () => {
+test("a failed fully parallel sweep cancels in-flight work and leaves the existing context intact", async () => {
   const context = { initialized: true, tables: ["existing"] };
   let calls = 0;
   const many = Array.from({ length: 30 }, (_, i) => ({
@@ -265,6 +266,6 @@ test("a failed sweep cancels queued work and leaves the existing context intact"
     })(),
     /429/,
   );
-  assert.ok(calls <= 8);
+  assert.equal(calls, many.length);
   assert.deepEqual(context.tables, ["existing"]);
 });
