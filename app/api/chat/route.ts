@@ -4,14 +4,18 @@ import { chatPrompt, runChat, type Message } from "@/lib/chat";
 import {
   addDiscoveredTables,
   discoverTables,
+  discoverFunctions,
   type DiscoveryContext,
 } from "@/lib/jev";
 import type { QueryStep, Table } from "@/lib/types";
 import type { Connection as MySQLConnection } from "mysql2";
 import { applyExclusions, contextTables } from "@/lib/table-context";
+import { readCodeArchive } from "@/lib/code-archive";
+import { functionsForTables, type SelectedFunction } from "@/lib/code-context";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  let selectedFunctions: SelectedFunction[] = [];
   try {
     checkOrigin(request);
     const session = await getSession();
@@ -102,10 +106,33 @@ export async function POST(request: Request) {
     }
     const visibleSchema = () =>
       context ? schema.filter((t) => context.tables.includes(t.name)) : schema;
+    const archive = await readCodeArchive(session.id);
+    if (archive || body.conversationId) {
+      if (
+        typeof body.conversationId !== "string" ||
+        !/^[0-9a-f-]{36}$/i.test(body.conversationId)
+      )
+        throw new Error("Identificador de conversación no válido.");
+      const contexts = (session.codeContexts ??= new Map());
+      if (!contexts.has(body.conversationId) && contexts.size >= 100)
+        contexts.delete(contexts.keys().next().value!);
+      selectedFunctions = functionsForTables(
+        contexts.get(body.conversationId) ?? [],
+        available.map((t) => t.name),
+      ) as SelectedFunction[];
+      contexts.set(body.conversationId, selectedFunctions);
+    }
     const freeVisualization = body.freeVisualization === true;
     const messages: Message[] = [
-      { role: "system", content: chatPrompt(freeVisualization, drStrange) },
+      {
+        role: "system",
+        content: chatPrompt(freeVisualization, drStrange, !!archive),
+      },
       { role: "system", content: JSON.stringify({ tables: visibleSchema() }) },
+      {
+        role: "system",
+        content: JSON.stringify({ functions: selectedFunctions }),
+      },
       ...(before === after && Array.isArray(body.history)
         ? body.history
             .slice(-6)
@@ -186,9 +213,35 @@ export async function POST(request: Request) {
             },
           }
         : undefined,
+      archive
+        ? async (purpose) => {
+            const candidates = functionsForTables(
+              archive.functions,
+              visibleSchema().map((t) => t.name),
+            );
+            const matches = await discoverFunctions(
+              candidates,
+              purpose,
+              session.apiKey,
+              signal,
+            );
+            for (const match of matches) {
+              // Keep the exact code already exposed throughout this conversation, even if the archive changes.
+              if (!selectedFunctions.some((fn) => fn.id === match.id))
+                selectedFunctions.push(match);
+            }
+            return {
+              purpose,
+              evaluated: candidates.length,
+              matched: matches.map((fn) => fn.id),
+              functions: selectedFunctions,
+            };
+          }
+        : undefined,
     );
     return Response.json({
       ...answer,
+      contextFunctions: selectedFunctions,
       ...(context ? { contextTables: context.tables } : {}),
     });
   } catch (error) {
@@ -198,6 +251,7 @@ export async function POST(request: Request) {
         : "La consulta ha fallado. Inténtalo de nuevo.";
     return Response.json(
       {
+        contextFunctions: selectedFunctions,
         error: /SQL syntax|Unknown column|doesn't exist/i.test(message)
           ? "La consulta generada no coincide con el esquema. Prueba a reformular tu pregunta o a añadir descripciones."
           : message,

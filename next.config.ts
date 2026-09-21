@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["node-unrar-js"],
   /* config options here */
-  allowedDevOrigins: ['192.168.1.100'],
+  allowedDevOrigins: ["192.168.1.100"],
 };
 
 export default nextConfig;

@@ -849,12 +849,14 @@ pre {
 .context-view-all:hover {
   text-decoration: underline;
 }
-dialog.context-tables-dialog {
+dialog.context-tables-dialog,
+dialog.context-functions-dialog {
   margin: auto;
   max-width: calc(100vw - 40px);
   color: inherit;
 }
-.context-tables-dialog::backdrop {
+.context-tables-dialog::backdrop,
+.context-functions-dialog::backdrop {
   background: #1e302947;
   backdrop-filter: blur(3px);
 }
@@ -1914,6 +1916,58 @@ h3 {
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 18px;
+}
+.code-archive-summary {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0;
+  padding: 18px;
+  background: #f0f7f5;
+  border: 1px solid #c8dfd6;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.code-archive-summary .button {
+  justify-self: start;
+}
+.function-context {
+  margin: 22px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  min-width: 0;
+}
+dialog.context-functions-dialog {
+  width: 760px;
+}
+.context-functions-dialog > p {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.function-card {
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.function-card summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.function-card p,
+.function-card small {
+  font-size: 11px;
+}
+.function-card pre {
+  max-height: 340px;
+  overflow: auto;
+  padding: 12px;
+  background: #172d29;
+  color: #e9f5ef;
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: pre;
 }
 .settings-card select {
   display: block;

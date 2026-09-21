@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { modelJson, type Analysis } from "@/lib/yii-analysis";
 import UsageImport, { type ModelWorkspaceProps } from "./usage-import";
+import CodeArchive from "./code-archive";
 
 function download(content: BlobPart, name: string, type: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -77,6 +78,10 @@ export default function ModelsPage(props: ModelWorkspaceProps) {
           </p>
         </div>
       </div>
+      <CodeArchive
+        key={`code-${props.connectionId || "disconnected"}`}
+        connectionId={props.connectionId}
+      />
       <section className="transform-card">
         <h2>1. Selecciona tu proyecto</h2>
         <p>

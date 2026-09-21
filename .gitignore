@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/.datamatic/
 
 # next.js
 /.next/

@@ -16,6 +16,7 @@ import ModelsPage from "./modelos/models-page";
 import type { TableUpdate } from "./modelos/usage-import";
 import { applyCatalog } from "@/lib/catalog";
 import type { ChatAnswer, Field, Group, Table } from "@/lib/types";
+import type { SelectedFunction } from "@/lib/code-context";
 
 type Connection = {
   name: string;
@@ -95,6 +96,9 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [drStrange, setDrStrange] = useState(false);
   const [discoveredTables, setDiscoveredTables] = useState<string[]>([]);
+  const [contextFunctions, setContextFunctions] = useState<SelectedFunction[]>(
+    [],
+  );
   const conversationId = useRef("");
   const [freeVisualization, setFreeVisualization] = useState(false);
   const [results, setResults] = useState<Result[]>([]);
@@ -103,6 +107,7 @@ export default function Home() {
   const [showAllTables, setShowAllTables] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const contextTablesDialog = useRef<HTMLDialogElement>(null);
+  const contextFunctionsDialog = useRef<HTMLDialogElement>(null);
   const storageLoaded = useRef(false);
   const workspace = useRef<Workspace>(emptyWorkspace());
   const [savedConnections, setSavedConnections] = useState<
@@ -117,6 +122,7 @@ export default function Home() {
   const resetConversation = useCallback(() => {
     setResults([]);
     setDiscoveredTables([]);
+    setContextFunctions([]);
     conversationId.current = "";
   }, []);
 
@@ -426,6 +432,8 @@ export default function Home() {
         }),
       });
       const data = await response.json();
+      if (Array.isArray(data.contextFunctions))
+        setContextFunctions(data.contextFunctions);
       if (!response.ok) throw new Error(data.error);
       if (drStrange) setDiscoveredTables(data.contextTables ?? []);
       setResults((previous) => [
@@ -887,6 +895,85 @@ export default function Home() {
                   </details>
                 </div>
               )}
+              <section
+                className="function-context"
+                aria-label="Código disponible para la IA"
+              >
+                <div className="context-summary">
+                  <span>Funciones con código</span>
+                  <b>{contextFunctions.length}</b>
+                </div>
+                <button
+                  type="button"
+                  className="context-view-all"
+                  aria-haspopup="dialog"
+                  aria-controls="context-functions-dialog"
+                  onClick={() => contextFunctionsDialog.current?.showModal()}
+                >
+                  Ver funciones
+                </button>
+              </section>
+              <dialog
+                ref={contextFunctionsDialog}
+                id="context-functions-dialog"
+                className="group-modal context-functions-dialog"
+                aria-labelledby="context-functions-title"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget) {
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    if (
+                      event.clientX < bounds.left ||
+                      event.clientX > bounds.right ||
+                      event.clientY < bounds.top ||
+                      event.clientY > bounds.bottom
+                    )
+                      contextFunctionsDialog.current?.close();
+                  }
+                }}
+              >
+                <div className="modal-heading">
+                  <h2 id="context-functions-title">Funciones con código</h2>
+                  <button
+                    type="button"
+                    aria-label="Cerrar funciones"
+                    onClick={() => contextFunctionsDialog.current?.close()}
+                  >
+                    ×
+                  </button>
+                </div>
+                <p className="muted">{contextFunctions.length} funciones</p>
+                <p>
+                  La IA conserva estas funciones completas durante la
+                  conversación.
+                </p>
+                {!contextFunctions.length && (
+                  <p className="muted">
+                    Aún no hay código seleccionado. Guarda un RAR o ZIP en
+                    Modelos, Controladores y Más; la IA buscará con JEV cuando
+                    necesite conocer la lógica.
+                  </p>
+                )}
+                {contextFunctions.map((fn) => (
+                  <details key={fn.id} className="function-card">
+                    <summary>
+                      <strong>{fn.name}</strong>
+                    </summary>
+                    <p>{fn.class || "Función global"}</p>
+                    <small>
+                      {fn.file}:{fn.line}
+                    </small>
+                    <p>
+                      <b>Modelos:</b> {fn.models.join(", ")}
+                    </p>
+                    <p>
+                      <b>Motivo:</b> {fn.purpose}
+                    </p>
+                    <pre>
+                      <code>{fn.rawCode}</code>
+                    </pre>
+                  </details>
+                ))}
+              </dialog>
               <div className="context-tip">
                 <Icon name="spark" size={17} />
                 <p>

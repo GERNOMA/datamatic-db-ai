@@ -45,6 +45,14 @@ Detection follows included ActiveRecord inheritance, PHP namespaces and aliases,
 
 ## Plain code layout
 
+### Saved code and function discovery
+
+In **Modelos, Controladores y Más → Archivo guardado en la web**, upload a `.rar` or `.zip` containing the exported `con-codigo/` JSONs. RAR decoding uses [node-unrar-js](https://github.com/YuJianrong/node-unrar.js). The original archive and validated functions are saved per database connection in `.datamatic/code/` on the server. Keep this directory on persistent storage when deploying; it is excluded from Git and browser workspace exports. Uploading raw PHP here is not supported: analyze it first using the existing project analyzer. A failed upload leaves the previous archive intact.
+
+The main model may choose `discover_functions` with a specific behavior to investigate. JEV receives one parallel request per unique function linked to the tables currently in chat context, including its complete original code. Only probabilities strictly above `JEV_FUNCTION_THRESHOLD` in `lib/code-context.ts` (default `0.6`) pass. This setting is code-only, with no user-facing control. The main model receives matching code only; discovery supports both manual groups and DR.STRANGE, and has its own five-search budget per question. Provider errors abort the sweep without automatically retrying all requests.
+
+The context sidebar shows selected functions, file/line, owning class, models, search purpose, and expandable complete code. Selected code accumulates across follow-up messages in the same chat, including after an answer fails. Replacing the archive affects future discoveries but preserves code already shown in that chat. A new/reset conversation, reconnection, session expiration, or server restart clears chat context; saved archives survive restarts. Functions tied only to excluded tables are removed. Unresolved table names cannot be searched until their model mapping is corrected.
+
 - `app/page.tsx`: the main screens and their state, with direct fetch calls.
 - `app/modelos/models-page.tsx`: recursive Yii2 project upload, results and JSON downloads.
 - `app/modelos/usage-import.tsx`: usage review, exclusions and automatic labeling.

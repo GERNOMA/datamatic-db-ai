@@ -32,6 +32,7 @@ export type AnswerView = {
 };
 
 export type ChatAnswer = {
+  contextFunctions?: import("./code-context").SelectedFunction[];
   contextTables?: string[];
   text: string;
   html?: string;

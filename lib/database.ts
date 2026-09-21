@@ -3,6 +3,7 @@ import mysql from "mysql2/promise";
 import { cookies } from "next/headers";
 import type { Table } from "./types";
 import type { DiscoveryContext } from "./jev";
+import type { SelectedFunction } from "./code-context";
 
 type Session = {
   url: string;
@@ -13,6 +14,7 @@ type Session = {
   tables: Table[];
   expires: number;
   discoveries?: Map<string, DiscoveryContext>;
+  codeContexts?: Map<string, SelectedFunction[]>;
 };
 // A small, single-server app: sessions expire after eight hours or a server restart.
 const globalState = globalThis as typeof globalThis & {
