@@ -79,14 +79,6 @@ export function validateCatalog(catalog: CatalogTable[], tables: Table[]) {
 }
 
 export function applyCatalog(catalog: CatalogTable[], tables: Table[]) {
-  if (
-    validateCatalog(catalog, tables).some(
-      (t) => !t.exists || t.fields.some((f) => !f.exists),
-    )
-  )
-    throw new Error(
-      "Corrige las tablas y los campos inexistentes antes de agregar datos.",
-    );
   const entries = new Map(catalog.map((entry) => [entry.tabla, entry]));
   return tables.map((table) => {
     const entry = entries.get(table.name);

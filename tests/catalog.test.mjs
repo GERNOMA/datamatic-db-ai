@@ -59,16 +59,44 @@ test("blank and omitted descriptions preserve existing values", () => {
   }
 });
 
-test("reports missing tables and fields and refuses partial application", () => {
+test("reports missing tables and fields but applies descriptions for existing elements", () => {
   const catalog = parse([
-    { tabla: "Candidates", columnas: [{ nombre: "missing" }] },
-    { tabla: "candidates", columnas: [{ nombre: "id" }] },
+    {
+      tabla: "Candidates",
+      descripcion: "Updated table",
+      columnas: [
+        { nombre: "missing", descripcion: "Skip" },
+        { nombre: "id", descripcion: "Updated ID" },
+      ],
+    },
+    {
+      tabla: "candidates",
+      descripcion: "Skip table",
+      columnas: [{ nombre: "id", descripcion: "Skip ID" }],
+    },
   ]);
   const result = validateCatalog(catalog, schema);
   assert.equal(result[0].exists, true);
   assert.equal(result[0].fields[0].exists, false);
   assert.equal(result[1].exists, false);
-  assert.throws(() => applyCatalog(catalog, schema), /inexistentes/);
+  const updated = applyCatalog(catalog, schema);
+  assert.equal(updated.length, schema.length);
+  assert.equal(updated[0].description, "Updated table");
+  assert.equal(updated[0].fields.length, schema[0].fields.length);
+  assert.equal(updated[0].fields[0].description, "Updated ID");
+  assert.deepEqual(updated[0].fields[1], schema[0].fields[1]);
+  assert.equal(updated[1], schema[1]);
+  assert.equal(schema[0].description, "Old table");
+});
+
+test("a catalog with only missing tables leaves descriptions unchanged", () => {
+  assert.deepEqual(
+    applyCatalog(
+      parse([{ tabla: "Missing", descripcion: "Skip", columnas: [] }]),
+      schema,
+    ),
+    schema,
+  );
 });
 
 test("rejects malformed input and duplicates; accepts a BOM", () => {

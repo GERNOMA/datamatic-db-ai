@@ -97,6 +97,7 @@ export default function Home() {
   const [groupTableSearch, setGroupTableSearch] = useState("");
   const [showAllTables, setShowAllTables] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const contextTablesDialog = useRef<HTMLDialogElement>(null);
   const storageLoaded = useRef(false);
   const workspace = useRef<Workspace>(emptyWorkspace());
   const [savedConnections, setSavedConnections] = useState<
@@ -766,12 +767,22 @@ export default function Home() {
               </div>
               {!!contextTables.length && (
                 <div className="context-tables">
-                  {contextTables.map((t) => (
+                  {contextTables.slice(0, 10).map((t) => (
                     <span key={t.name}>
                       <Icon name="grid" size={13} />
                       {t.name}
                     </span>
                   ))}
+                  <button
+                    type="button"
+                    className="context-view-all"
+                    aria-haspopup="dialog"
+                    aria-controls="context-tables-dialog"
+                    onClick={() => contextTablesDialog.current?.showModal()}
+                  >
+                    <Icon name="grid" size={14} />
+                    Ver todas
+                  </button>
                   <details>
                     <summary>Ver esquema JSON</summary>
                     <pre>
@@ -815,6 +826,44 @@ export default function Home() {
               >
                 Listo
               </button>
+              <dialog
+                ref={contextTablesDialog}
+                id="context-tables-dialog"
+                className="group-modal context-tables-dialog"
+                aria-labelledby="context-tables-title"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget) {
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    if (
+                      event.clientX < bounds.left ||
+                      event.clientX > bounds.right ||
+                      event.clientY < bounds.top ||
+                      event.clientY > bounds.bottom
+                    )
+                      contextTablesDialog.current?.close();
+                  }
+                }}
+              >
+                <div className="modal-heading">
+                  <h2 id="context-tables-title">Tablas en contexto</h2>
+                  <button
+                    type="button"
+                    aria-label="Cerrar tablas en contexto"
+                    onClick={() => contextTablesDialog.current?.close()}
+                  >
+                    ×
+                  </button>
+                </div>
+                <p className="muted">{contextTables.length} tablas</p>
+                <ul className="context-dialog-list">
+                  {contextTables.map((table) => (
+                    <li key={table.name}>
+                      <Icon name="grid" size={16} />
+                      <span>{table.name}</span>
+                    </li>
+                  ))}
+                </ul>
+              </dialog>
             </aside>
           </div>
         </main>
@@ -833,7 +882,11 @@ export default function Home() {
             const group = {
               id: createGroupId(),
               name: filename,
-              tables: catalog.map((entry) => entry.tabla),
+              tables: catalog
+                .filter((entry) =>
+                  tables.some((table) => table.name === entry.tabla),
+                )
+                .map((entry) => entry.tabla),
             };
             setTables(updated);
             setGroups((previous) => [...previous, group]);

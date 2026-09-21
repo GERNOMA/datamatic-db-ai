@@ -33,11 +33,20 @@ export default function TransformPage({
     .flatMap((t) => t.fields)
     .filter((f) => !f.exists).length;
   const hasIssues = missingTables > 0 || missingFields > 0;
+  const matchingCatalog = catalog?.filter((entry) =>
+    tables.some((table) => table.name === entry.tabla),
+  );
   const tableDescriptions =
-    catalog?.filter((t) => t.descripcion !== undefined).length ?? 0;
+    matchingCatalog?.filter((t) => t.descripcion !== undefined).length ?? 0;
   const fieldDescriptions =
-    catalog
-      ?.flatMap((t) => t.columnas)
+    matchingCatalog
+      ?.flatMap((entry) =>
+        entry.columnas.filter((field) =>
+          tables
+            .find((table) => table.name === entry.tabla)
+            ?.fields.some((f) => f.name === field.nombre),
+        ),
+      )
       .filter((f) => f.descripcion !== undefined).length ?? 0;
 
   async function readFile(file?: File) {
@@ -146,7 +155,7 @@ export default function TransformPage({
                   }
                 >
                   {hasIssues
-                    ? "Hay diferencias con el esquema. Corrige el archivo y vuelve a seleccionarlo para continuar."
+                    ? "Puedes continuar. Se omitirán las tablas y los campos inexistentes; solo se actualizarán las descripciones que correspondan a elementos existentes."
                     : "Todo correcto. Todas las tablas y sus campos existen."}
                 </p>
                 <label className="transform-filter">
@@ -226,12 +235,12 @@ export default function TransformPage({
                 </p>
                 <p>
                   Se creará el grupo <strong>{filename}</strong> con las{" "}
-                  {catalog.length} tablas del archivo. Las demás tablas y los
-                  grupos existentes se conservarán.
+                  {matchingCatalog?.length ?? 0} tablas existentes del archivo.
+                  Las demás tablas y los grupos existentes se conservarán.
                 </p>
                 <button
                   className="button primary"
-                  disabled={hasIssues || applied || reading}
+                  disabled={applied || reading}
                   onClick={() => {
                     try {
                       onApply(catalog, filename);
@@ -251,6 +260,8 @@ export default function TransformPage({
                 {applied && (
                   <p className="transform-success" role="status">
                     Descripciones actualizadas y grupo «{filename}» creado.
+                    {hasIssues &&
+                      " Se omitieron las tablas y los campos inexistentes."}
                     Puedes revisarlos en Base de Datos.
                   </p>
                 )}
