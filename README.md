@@ -29,9 +29,20 @@ The first discovery is mandatory once per conversation, including when it finds 
 
 JEV uses the same OpenRouter key through the [Decisions API](https://github.com/OpenRouterTeam/typescript-sdk/blob/main/src/funcs/alphaDecisionsCreate.ts), at `/api/alpha/decisions`, with model `typesafe/jev-1.13` and a `noul` yes/no probability. The main model remains the model configured in Connect. Free visualization works with either context mode.
 
+## Modelos, Controladores y Más
+
+Open **Modelos, Controladores y Más** in the navigation (or `/modelos`). Select a ZIP, an entire folder including subfolders, or multiple PHP files. Analysis runs locally in a cancellable browser worker, without executing PHP or sending source code to an AI service. Limits: 20,000 PHP files and 100 MB of uncompressed source per analysis.
+
+Download a ZIP with one JSON pair per detected Yii2 ActiveRecord class: `sin-codigo/` contains the logical table (`module`), model identity, referenced functions, controller or owning class, source path, line, and matching evidence; `con-codigo/` adds the exact method declaration (`rawCode`) and text inside its braces (`body`). Non-controller functions have `controller: null`. The archive includes `informe.json` with parsing failures and missing base classes. Separate models sharing a table retain separate exports.
+
+Detection follows included ActiveRecord inheritance, PHP namespaces and aliases, class references, and calls to included static or `$this` methods (including inherited helpers such as `findModel`). Include custom base classes with your project. Table names are explicit, inherited, convention-based, or unresolved; dynamic `tableName()` expressions are preserved without inventing a table. Yii connection prefixes are not resolved. Form models without tables are excluded. This is static context extraction for use with an AI, not a complete runtime call graph: dynamic dispatch, reflection, raw SQL, trait methods and some variable flows are not resolved. Results stay in memory until you leave or reload the page.
+
 ## Plain code layout
 
-- `app/page.tsx`: the three screens and their state, with direct fetch calls.
+- `app/page.tsx`: the main screens and their state, with direct fetch calls.
+- `app/modelos/page.tsx`: recursive Yii2 project upload, results and JSON downloads.
+- `app/modelos/yii.worker.ts`: background parsing and ZIP generation.
+- `lib/yii-analysis.ts`: model discovery, table resolution and function mapping.
 - `app/globals.css`: all responsive styling.
 - `app/api/connect/route.ts`: connect, read the schema, restore a session, disconnect.
 - `app/api/chat/route.ts`: call OpenRouter and execute bounded, read-only queries.

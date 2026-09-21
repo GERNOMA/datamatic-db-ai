@@ -466,6 +466,10 @@ export default function Home() {
           datamatic<span className="beta">BETA</span>
         </Link>
         <nav aria-label="Navegación principal">
+          <Link href="/modelos" className="nav-item">
+            <Icon name="folder" />
+            Modelos, Controladores y Más
+          </Link>
           {(["Chat", "Database", "Connect", "Transformar"] as Tab[]).map(
             (item) => (
               <button
