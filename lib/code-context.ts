@@ -1,5 +1,5 @@
 // Code-only setting: JEV probabilities must be strictly above this value (0–1).
-export const JEV_FUNCTION_THRESHOLD = 0.8;
+export const JEV_FUNCTION_THRESHOLD = 0.5;
 export type CodeFunction = {
   id: string;
   name: string;
