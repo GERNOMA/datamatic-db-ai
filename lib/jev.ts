@@ -141,8 +141,13 @@ export function addDiscoveredTables(
   context: DiscoveryContext,
   tables: Table[],
 ) {
-  context.tables = [
-    ...new Set([...context.tables, ...tables.map((table) => table.name)]),
-  ];
+  const known = new Set(context.tables);
+  const added = tables.filter((table) => {
+    if (known.has(table.name)) return false;
+    known.add(table.name);
+    return true;
+  });
+  context.tables = [...known];
   context.initialized = true;
+  return added;
 }

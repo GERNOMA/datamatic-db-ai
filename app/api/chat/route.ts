@@ -11,7 +11,11 @@ import type { QueryStep, Table } from "@/lib/types";
 import type { Connection as MySQLConnection } from "mysql2";
 import { applyExclusions, contextTables } from "@/lib/table-context";
 import { readCodeArchive } from "@/lib/code-archive";
-import { functionsForTables, type SelectedFunction } from "@/lib/code-context";
+import {
+  addDiscoveredFunctions,
+  functionsForTables,
+  type SelectedFunction,
+} from "@/lib/code-context";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
@@ -204,11 +208,11 @@ export async function POST(request: Request) {
                 session.apiKey,
                 signal,
               );
-              addDiscoveredTables(context, matches);
+              const added = addDiscoveredTables(context, matches);
               return {
                 purpose,
                 matchedTables: matches.map((t) => t.name),
-                tables: visibleSchema(),
+                tables: added,
               };
             },
           }
@@ -225,16 +229,13 @@ export async function POST(request: Request) {
               session.apiKey,
               signal,
             );
-            for (const match of matches) {
-              // Keep the exact code already exposed throughout this conversation, even if the archive changes.
-              if (!selectedFunctions.some((fn) => fn.id === match.id))
-                selectedFunctions.push(match);
-            }
+            // Keep previously exposed code even if the archive changes.
+            const added = addDiscoveredFunctions(selectedFunctions, matches);
             return {
               purpose,
               evaluated: candidates.length,
               matched: matches.map((fn) => fn.id),
-              functions: selectedFunctions,
+              functions: added,
             };
           }
         : undefined,

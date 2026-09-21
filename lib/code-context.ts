@@ -21,6 +21,21 @@ export type CodeArchiveInfo = {
   models: number;
 };
 
+// Persist all selected code, but expose only additions in each discovery message.
+export function addDiscoveredFunctions(
+  selected: SelectedFunction[],
+  matches: SelectedFunction[],
+): SelectedFunction[] {
+  const known = new Set(selected.map((fn) => fn.id));
+  const added = matches.filter((fn) => {
+    if (known.has(fn.id)) return false;
+    known.add(fn.id);
+    return true;
+  });
+  selected.push(...added);
+  return added;
+}
+
 export function parseCodeModels(
   entries: Record<string, Uint8Array>,
 ): CodeFunction[] {
