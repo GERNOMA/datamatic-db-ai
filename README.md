@@ -21,6 +21,14 @@ The browser saves one versioned JSON workspace (`datamatic:workspace`) containin
 
 At the bottom of **Connect**, **Exportar JSON** downloads `datamatic-workspace.json`. **Importar JSON** validates a version-1 workspace (up to 5 MB) and replaces the entire saved workspace, including all connections. Invalid files leave the current workspace intact. Import ends the current server session and clears the conversation; choose a saved connection and connect to refresh its schema while retaining surviving descriptions and groups. The exported JSON contains credentials in plain text. Chat results and unsaved form/editor drafts are not included. Server sessions last eight hours or until a restart; saved profiles remain available to reconnect.
 
+## Modo DR.STRANGE
+
+Enable **Modo DR.STRANGE**, to the left of **Visualización libre**, to replace manual group selection with automatic table discovery. Switching this mode starts a new conversation. The main model first chooses a purpose; JEV receives one request per table in the connected schema, including its field and table descriptions. Only tables with a probability of usefulness strictly above 30% become visible and queryable by the main model. Change `JEV_CONFIDENCE_THRESHOLD` in `lib/jev.ts` (0–1) to adjust that cutoff.
+
+The first discovery is mandatory once per conversation, including when it finds no matches. Later discoveries are optional and can be interleaved with SQL actions or requested for a follow-up question. They reassess every table and add matches to the existing context. The context is held on the server for the current session; new conversations and reconnections start fresh. There are up to five discovery sweeps plus five SQL queries per question, with eight concurrent JEV requests at most and the existing three-minute deadline. Failed sweeps do not replace the previous context or automatically retry requests.
+
+JEV uses the same OpenRouter key through the [Decisions API](https://github.com/OpenRouterTeam/typescript-sdk/blob/main/src/funcs/alphaDecisionsCreate.ts), at `/api/alpha/decisions`, with model `typesafe/jev-1.13` and a `noul` yes/no probability. The main model remains the model configured in Connect. Free visualization works with either context mode.
+
 ## Plain code layout
 
 - `app/page.tsx`: the three screens and their state, with direct fetch calls.

@@ -1,6 +1,11 @@
 import { checkOrigin, getSession, openDatabase } from "@/lib/database";
 import { validateQuery } from "@/lib/sql";
 import { chatPrompt, runChat, type Message } from "@/lib/chat";
+import {
+  addDiscoveredTables,
+  discoverTables,
+  type DiscoveryContext,
+} from "@/lib/jev";
 import type { QueryStep, Table } from "@/lib/types";
 import type { Connection as MySQLConnection } from "mysql2";
 export const runtime = "nodejs";
@@ -18,26 +23,34 @@ export async function POST(request: Request) {
       body.question.length > 8000
     )
       throw new Error("Introduce una pregunta de hasta 8000 caracteres.");
-    if (!Array.isArray(body.tables) || !body.tables.length)
+    const drStrange = body.drStrange === true;
+    if (!Array.isArray(body.tables) || (!drStrange && !body.tables.length))
       throw new Error("Selecciona un grupo que contenga al menos una tabla.");
-    const schema = body.tables.map((provided: Table) => {
-      const actual = session.tables.find((t) => t.name === provided.name);
+    const candidates: Table[] = drStrange ? session.tables : body.tables;
+    const schema = candidates.map((candidate) => {
+      const actual = session.tables.find((t) => t.name === candidate?.name);
       if (!actual)
         throw new Error(
           "Una tabla seleccionada ya no existe. Vuelve a conectarte para actualizar el esquema.",
         );
+      const provided =
+        body.tables.find((t: Table) => t?.name === actual.name) ?? actual;
       return {
         name: actual.name,
         ...(provided.description
           ? { description: String(provided.description).slice(0, 2000) }
           : {}),
         fields: actual.fields.map((field) => {
-          const description = provided.fields?.find(
-            (f) => f.name === field.name,
+          const description = (
+            Array.isArray(provided.fields) ? provided.fields : []
+          ).find(
+            (f: Table["fields"][number]) => f?.name === field.name,
           )?.description;
           return {
             name: field.name,
             type: field.type,
+            key: field.key,
+            nullable: field.nullable,
             ...(description
               ? { description: String(description).slice(0, 2000) }
               : {}),
@@ -45,10 +58,28 @@ export async function POST(request: Request) {
         }),
       };
     });
+    let context: DiscoveryContext | undefined;
+    if (drStrange) {
+      if (
+        typeof body.conversationId !== "string" ||
+        !/^[0-9a-f-]{36}$/i.test(body.conversationId)
+      )
+        throw new Error("Identificador de conversación no válido.");
+      const contexts = (session.discoveries ??= new Map());
+      context = contexts.get(body.conversationId);
+      if (!context) {
+        if (contexts.size >= 100)
+          contexts.delete(contexts.keys().next().value!);
+        context = { initialized: false, tables: [] };
+        contexts.set(body.conversationId, context);
+      }
+    }
+    const visibleSchema = () =>
+      context ? schema.filter((t) => context.tables.includes(t.name)) : schema;
     const freeVisualization = body.freeVisualization === true;
     const messages: Message[] = [
-      { role: "system", content: chatPrompt(freeVisualization) },
-      { role: "system", content: JSON.stringify({ tables: schema }) },
+      { role: "system", content: chatPrompt(freeVisualization, drStrange) },
+      { role: "system", content: JSON.stringify({ tables: visibleSchema() }) },
       ...(Array.isArray(body.history)
         ? body.history
             .slice(-6)
@@ -105,13 +136,35 @@ export async function POST(request: Request) {
         signal.throwIfAborted();
         return executeQuery(
           sql,
-          schema.map((t: Table) => t.name),
+          visibleSchema().map((t) => t.name),
           session.url,
         );
       },
       freeVisualization,
+      context
+        ? {
+            required: !context.initialized,
+            discover: async (purpose) => {
+              const matches = await discoverTables(
+                schema,
+                purpose,
+                session.apiKey,
+                signal,
+              );
+              addDiscoveredTables(context, matches);
+              return {
+                purpose,
+                matchedTables: matches.map((t) => t.name),
+                tables: visibleSchema(),
+              };
+            },
+          }
+        : undefined,
     );
-    return Response.json(answer);
+    return Response.json({
+      ...answer,
+      ...(context ? { contextTables: context.tables } : {}),
+    });
   } catch (error) {
     const message =
       error instanceof Error

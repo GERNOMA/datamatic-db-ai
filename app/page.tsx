@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createGroupId } from "@/lib/group-id";
 import {
@@ -91,6 +91,9 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [question, setQuestion] = useState("");
+  const [drStrange, setDrStrange] = useState(false);
+  const [discoveredTables, setDiscoveredTables] = useState<string[]>([]);
+  const conversationId = useRef("");
   const [freeVisualization, setFreeVisualization] = useState(false);
   const [results, setResults] = useState<Result[]>([]);
   const [groupEditor, setGroupEditor] = useState<Group | null>(null);
@@ -109,6 +112,12 @@ export default function Home() {
   const importInput = useRef<HTMLInputElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
+  const resetConversation = useCallback(() => {
+    setResults([]);
+    setDiscoveredTables([]);
+    conversationId.current = "";
+  }, []);
+
   function openGroupEditor(group: Group) {
     setGroupTableSearch("");
     setGroupEditor(group);
@@ -124,55 +133,55 @@ export default function Home() {
     ? matchingTables
     : matchingTables.slice(0, 10);
 
-  function loadConnection(
-    data: Connection,
-    credentials?: { url: string; apiKey: string },
-  ) {
-    const saved = workspace.current.connections.find((c) => c.id === data.id);
-    const merged = data.tables.map((t) => {
-      const previous = saved?.tables?.find((old) => old.name === t.name);
-      return {
-        ...t,
-        description: previous?.description || "",
-        fields: t.fields.map((f) => ({
-          ...f,
-          description:
-            previous?.fields.find((old) => old.name === f.name)?.description ||
-            "",
-        })),
+  const loadConnection = useCallback(
+    (data: Connection, credentials?: { url: string; apiKey: string }) => {
+      const saved = workspace.current.connections.find((c) => c.id === data.id);
+      const merged = data.tables.map((t) => {
+        const previous = saved?.tables?.find((old) => old.name === t.name);
+        return {
+          ...t,
+          description: previous?.description || "",
+          fields: t.fields.map((f) => ({
+            ...f,
+            description:
+              previous?.fields.find((old) => old.name === f.name)
+                ?.description || "",
+          })),
+        };
+      });
+      const restored = (saved?.groups || []).map((g) => ({
+        ...g,
+        tables: g.tables.filter((name) => merged.some((t) => t.name === name)),
+      }));
+      workspace.current = {
+        ...workspace.current,
+        activeConnectionId: data.id,
+        connections: [
+          ...workspace.current.connections.filter((c) => c.id !== data.id),
+          {
+            id: data.id,
+            name: data.name,
+            model: data.model,
+            url: credentials?.url ?? saved?.url ?? "",
+            apiKey: credentials?.apiKey ?? saved?.apiKey ?? "",
+            tables: merged,
+            groups: restored,
+            selectedGroups: saved?.selectedGroups ?? [],
+          },
+        ],
       };
-    });
-    const restored = (saved?.groups || []).map((g) => ({
-      ...g,
-      tables: g.tables.filter((name) => merged.some((t) => t.name === name)),
-    }));
-    workspace.current = {
-      ...workspace.current,
-      activeConnectionId: data.id,
-      connections: [
-        ...workspace.current.connections.filter((c) => c.id !== data.id),
-        {
-          id: data.id,
-          name: data.name,
-          model: data.model,
-          url: credentials?.url ?? saved?.url ?? "",
-          apiKey: credentials?.apiKey ?? saved?.apiKey ?? "",
-          tables: merged,
-          groups: restored,
-          selectedGroups: saved?.selectedGroups ?? [],
-        },
-      ],
-    };
-    setSavedConnections(workspace.current.connections);
-    setConnection(data);
-    setTables(merged);
-    setShowAllTables(false);
-    setGroups(restored);
-    setSelectedGroups(saved?.selectedGroups ?? []);
-    setSelectedTable(merged[0]?.name || "");
-    setModel(data.model);
-    setResults([]);
-  }
+      setSavedConnections(workspace.current.connections);
+      setConnection(data);
+      setTables(merged);
+      setShowAllTables(false);
+      setGroups(restored);
+      setSelectedGroups(saved?.selectedGroups ?? []);
+      setSelectedTable(merged[0]?.name || "");
+      setModel(data.model);
+      resetConversation();
+    },
+    [resetConversation],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -205,7 +214,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadConnection]);
 
   useEffect(() => {
     if (!ready) return;
@@ -282,7 +291,7 @@ export default function Home() {
       setGroups([]);
       setSelectedGroups([]);
       setSelectedTable("");
-      setResults([]);
+      resetConversation();
       setQuestion("");
       setGroupEditor(null);
       setSearch("");
@@ -346,7 +355,7 @@ export default function Home() {
       setTables([]);
       setGroups([]);
       setSelectedGroups([]);
-      setResults([]);
+      resetConversation();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo desconectar.");
     } finally {
@@ -355,9 +364,11 @@ export default function Home() {
   }
 
   const contextTables = tables.filter((t) =>
-    groups.some(
-      (g) => selectedGroups.includes(g.id) && g.tables.includes(t.name),
-    ),
+    drStrange
+      ? discoveredTables.includes(t.name)
+      : groups.some(
+          (g) => selectedGroups.includes(g.id) && g.tables.includes(t.name),
+        ),
   );
   const currentTable = tables.find((t) => t.name === selectedTable);
 
@@ -368,13 +379,14 @@ export default function Home() {
       setTab("Connect");
       return;
     }
-    if (!contextTables.length) {
+    if (!drStrange && !contextTables.length) {
       setError(
         "Selecciona un grupo con al menos una tabla antes de hacer una pregunta.",
       );
       setContextOpen(true);
       return;
     }
+    if (!conversationId.current) conversationId.current = crypto.randomUUID();
     const text = question.trim();
     setQuestion("");
     setBusy(true);
@@ -398,13 +410,16 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: text,
-          tables: contextTables,
+          tables: drStrange ? tables : contextTables,
+          drStrange,
+          conversationId: conversationId.current,
           history,
           freeVisualization,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
+      if (drStrange) setDiscoveredTables(data.contextTables ?? []);
       setResults((previous) => [
         ...previous.slice(0, -1),
         { question: text, answer: data },
@@ -513,7 +528,7 @@ export default function Home() {
               className="button secondary small"
               disabled={busy || !results.length}
               onClick={() => {
-                setResults([]);
+                resetConversation();
                 setQuestion("");
               }}
             >
@@ -637,16 +652,32 @@ export default function Home() {
                     <button
                       type="button"
                       className="context-toggle"
+                      disabled={drStrange}
                       onClick={() => setContextOpen(!contextOpen)}
                     >
                       <Icon name="folder" size={15} />
-                      {selectedGroups.length
-                        ? `${selectedGroups.length} ${selectedGroups.length === 1 ? "grupo seleccionado" : "grupos seleccionados"}`
-                        : "Seleccionar grupos"}
+                      {drStrange
+                        ? "Contexto automático · JEV"
+                        : selectedGroups.length
+                          ? `${selectedGroups.length} ${selectedGroups.length === 1 ? "grupo seleccionado" : "grupos seleccionados"}`
+                          : "Seleccionar grupos"}
                       <span>⌄</span>
                     </button>
                     <div className="send-controls">
                       <span>Intro para enviar</span>
+                      <label className="free-visualization-toggle">
+                        <input
+                          type="checkbox"
+                          checked={drStrange}
+                          disabled={busy}
+                          onChange={(event) => {
+                            setDrStrange(event.target.checked);
+                            setContextOpen(false);
+                            resetConversation();
+                          }}
+                        />
+                        Modo DR.STRANGE
+                      </label>
                       <label className="free-visualization-toggle">
                         <input
                           type="checkbox"
@@ -685,81 +716,92 @@ export default function Home() {
                 <span>Contexto de la conversación</span>
                 <Icon name="folder" size={17} />
               </div>
-              <p>
-                Selecciona los grupos que quieres explorar.
-                <br />
-                Su esquema y los resultados de las consultas se comparten con la
-                IA.
-              </p>
-              <div className="section-label">
-                TUS GRUPOS{" "}
-                <button
-                  aria-label="Crear grupo"
-                  onClick={() => {
-                    setTab("Database");
-                    openGroupEditor({
-                      id: createGroupId(),
-                      name: "",
-                      tables: [],
-                    });
-                  }}
-                  disabled={!connection || busy}
-                >
-                  <Icon name="plus" size={15} />
-                </button>
-              </div>
-              {groups.length ? (
-                <div className="group-choices">
-                  {groups.map((g) => (
-                    <label
-                      key={g.id}
-                      className={
-                        selectedGroups.includes(g.id)
-                          ? "group-choice chosen"
-                          : "group-choice"
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedGroups.includes(g.id)}
-                        disabled={busy}
-                        onChange={(e) => {
-                          setSelectedGroups((old) =>
-                            e.target.checked
-                              ? [...old, g.id]
-                              : old.filter((id) => id !== g.id),
-                          );
-                          setResults([]);
-                        }}
-                      />
-                      <span>
-                        <strong>{g.name}</strong>
-                        <small>{g.tables.length} tablas</small>
-                      </span>
-                      <Icon name="folder" size={16} />
-                    </label>
-                  ))}
-                </div>
+              {drStrange ? (
+                <p>
+                  JEV evalúa todas las tablas para cada propósito de la IA. Las
+                  tablas descubiertas se acumulan en esta conversación.
+                </p>
               ) : (
-                <div className="context-empty">
-                  <div className="folder-illustration">
-                    <Icon name="folder" size={28} />
-                  </div>
-                  <strong>Un poco de contexto ayuda</strong>
+                <>
                   <p>
-                    Organiza las tablas relacionadas en grupos
+                    Selecciona los grupos que quieres explorar.
                     <br />
-                    para enfocar tus preguntas.
+                    Su esquema y los resultados de las consultas se comparten
+                    con la IA.
                   </p>
-                  <button
-                    onClick={() => setTab(connection ? "Database" : "Connect")}
-                  >
-                    {connection
-                      ? "Crear un grupo"
-                      : "Conectar una base de datos"}{" "}
-                    <span>→</span>
-                  </button>
-                </div>
+                  <div className="section-label">
+                    TUS GRUPOS{" "}
+                    <button
+                      aria-label="Crear grupo"
+                      onClick={() => {
+                        setTab("Database");
+                        openGroupEditor({
+                          id: createGroupId(),
+                          name: "",
+                          tables: [],
+                        });
+                      }}
+                      disabled={!connection || busy}
+                    >
+                      <Icon name="plus" size={15} />
+                    </button>
+                  </div>
+                  {groups.length ? (
+                    <div className="group-choices">
+                      {groups.map((g) => (
+                        <label
+                          key={g.id}
+                          className={
+                            selectedGroups.includes(g.id)
+                              ? "group-choice chosen"
+                              : "group-choice"
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedGroups.includes(g.id)}
+                            disabled={busy}
+                            onChange={(e) => {
+                              setSelectedGroups((old) =>
+                                e.target.checked
+                                  ? [...old, g.id]
+                                  : old.filter((id) => id !== g.id),
+                              );
+                              resetConversation();
+                            }}
+                          />
+                          <span>
+                            <strong>{g.name}</strong>
+                            <small>{g.tables.length} tablas</small>
+                          </span>
+                          <Icon name="folder" size={16} />
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="context-empty">
+                      <div className="folder-illustration">
+                        <Icon name="folder" size={28} />
+                      </div>
+                      <strong>Un poco de contexto ayuda</strong>
+                      <p>
+                        Organiza las tablas relacionadas en grupos
+                        <br />
+                        para enfocar tus preguntas.
+                      </p>
+                      <button
+                        onClick={() =>
+                          setTab(connection ? "Database" : "Connect")
+                        }
+                      >
+                        {connection
+                          ? "Crear un grupo"
+                          : "Conectar una base de datos"}{" "}
+                        <span>→</span>
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
               <div className="context-summary">
                 <span>Tablas en contexto</span>
@@ -1342,7 +1384,7 @@ export default function Home() {
                 ...old.filter((g) => g.id !== groupEditor.id),
                 { ...groupEditor, name: groupEditor.name.trim() },
               ]);
-              setResults([]);
+              resetConversation();
               setGroupEditor(null);
             }}
           >
@@ -1427,7 +1469,7 @@ export default function Home() {
                     setSelectedGroups((old) =>
                       old.filter((id) => id !== groupEditor.id),
                     );
-                    setResults([]);
+                    resetConversation();
                     setGroupEditor(null);
                   }}
                 >

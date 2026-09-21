@@ -27,6 +27,7 @@ export type AnswerView = {
 };
 
 export type ChatAnswer = {
+  contextTables?: string[];
   text: string;
   html?: string;
   views: AnswerView[];
