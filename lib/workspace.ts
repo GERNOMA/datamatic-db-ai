@@ -37,6 +37,40 @@ function strings(value: unknown): value is string[] {
 function unique(values: string[]) {
   return new Set(values).size === values.length;
 }
+function validLabelEvidence(value: unknown) {
+  if (!record(value)) return false;
+  return (
+    [value.generatedAt, value.model, value.description].every(
+      (v) => typeof v === "string",
+    ) &&
+    Array.isArray(value.claims) &&
+    value.claims.every(
+      (c) => record(c) && typeof c.text === "string" && strings(c.sources),
+    ) &&
+    Array.isArray(value.functions) &&
+    value.functions.every(
+      (f) =>
+        record(f) &&
+        [f.id, f.name, f.file, f.hash].every((v) => typeof v === "string") &&
+        typeof f.line === "number" &&
+        Number.isInteger(f.line) &&
+        f.line > 0,
+    ) &&
+    Array.isArray(value.queries) &&
+    value.queries.every(
+      (q) =>
+        record(q) &&
+        typeof q.id === "string" &&
+        typeof q.sql === "string" &&
+        typeof q.rowCount === "number" &&
+        Number.isInteger(q.rowCount) &&
+        q.rowCount >= 0 &&
+        typeof q.truncated === "boolean" &&
+        (q.error === undefined || typeof q.error === "string"),
+    ) &&
+    strings(value.warnings)
+  );
+}
 export function validTables(value: unknown): value is Table[] {
   return (
     Array.isArray(value) &&
@@ -45,6 +79,8 @@ export function validTables(value: unknown): value is Table[] {
         record(t) &&
         typeof t.name === "string" &&
         (t.description === undefined || typeof t.description === "string") &&
+        (t.labelEvidence === undefined ||
+          validLabelEvidence(t.labelEvidence)) &&
         (t.notUsed === undefined || typeof t.notUsed === "boolean") &&
         Array.isArray(t.fields) &&
         t.fields.every(

@@ -6,6 +6,8 @@ export type LabelInput = {
 };
 export type LabelResult = {
   table: string;
+  evidence?: import("./types").LabelEvidence;
+  stage?: string;
   description?: string;
   error?: string;
   modelResponse?: string;
@@ -22,7 +24,7 @@ class LabelResponseError extends Error {
   }
 }
 
-function extractText(completion: unknown): string | undefined {
+export function extractText(completion: unknown): string | undefined {
   if (!completion || typeof completion !== "object") return undefined;
   const value = completion as Record<string, unknown>;
   const choices = Array.isArray(value.choices) ? value.choices : [];

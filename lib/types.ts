@@ -7,9 +7,32 @@ export type Field = {
 };
 export type Table = {
   name: string;
+  labelEvidence?: LabelEvidence;
   description?: string;
   notUsed?: boolean;
   fields: Field[];
+};
+
+export type LabelEvidence = {
+  generatedAt: string;
+  model: string;
+  description: string;
+  claims: { text: string; sources: string[] }[];
+  functions: {
+    id: string;
+    name: string;
+    file: string;
+    line: number;
+    hash: string;
+  }[];
+  queries: {
+    id: string;
+    sql: string;
+    rowCount: number;
+    truncated: boolean;
+    error?: string;
+  }[];
+  warnings: string[];
 };
 export type Group = { id: string; name: string; tables: string[] };
 

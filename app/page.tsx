@@ -14,6 +14,7 @@ import AnswerView from "./answer-view";
 import TransformPage from "./transform-page";
 import ModelsPage from "./modelos/models-page";
 import type { TableUpdate } from "./modelos/usage-import";
+import LabelEvidenceDetails from "./label-evidence";
 import { applyCatalog } from "@/lib/catalog";
 import type { ChatAnswer, Field, Group, Table } from "@/lib/types";
 import type { SelectedFunction } from "@/lib/code-context";
@@ -149,6 +150,7 @@ export default function Home() {
         return {
           ...t,
           description: previous?.description || "",
+          labelEvidence: previous?.labelEvidence,
           notUsed: previous?.notUsed ?? t.notUsed ?? false,
           fields: t.fields.map((f) => ({
             ...f,
@@ -465,7 +467,7 @@ export default function Home() {
                   f.name === field.name ? { ...f, description: value } : f,
                 ),
               }
-            : { ...t, description: value },
+            : { ...t, description: value, labelEvidence: undefined },
       ),
     );
   }
@@ -480,7 +482,10 @@ export default function Home() {
           ...table,
           ...(change.notUsed !== undefined ? { notUsed: change.notUsed } : {}),
           ...(change.description !== undefined && !table.notUsed
-            ? { description: change.description }
+            ? {
+                description: change.description,
+                labelEvidence: change.labelEvidence,
+              }
             : {}),
         };
       }),
@@ -1449,6 +1454,11 @@ export default function Home() {
                       onChange={(e) => describe(e.target.value)}
                       placeholder="Describe esta tabla para ayudar a la IA a entender tus datos…"
                     />
+                    {currentTable.labelEvidence && (
+                      <LabelEvidenceDetails
+                        evidence={currentTable.labelEvidence}
+                      />
+                    )}
                     <div className="table-group-tags">
                       {groups
                         .filter((g) => g.tables.includes(currentTable.name))

@@ -1,6 +1,9 @@
 import { checkOrigin, getSession } from "@/lib/database";
 import { applyExclusions } from "@/lib/table-context";
-import { labelInputs, labelTables } from "@/lib/automatic-labels";
+import { labelInputs } from "@/lib/automatic-labels";
+import { researchLabels } from "@/lib/researched-labels";
+import { readCodeArchive } from "@/lib/code-archive";
+import { executeQuery } from "@/lib/query";
 
 export const runtime = "nodejs";
 export async function POST(request: Request) {
@@ -20,6 +23,7 @@ export async function POST(request: Request) {
       throw new Error("Introduce el modelo de OpenRouter para el etiquetado.");
     const tables = applyExclusions(session.tables, body.notUsedTables);
     const inputs = labelInputs(body.tables, tables);
+    const archive = await readCodeArchive(session.id);
     if (
       tables.some(
         (table, index) => !!table.notUsed !== !!session.tables[index].notUsed,
@@ -31,24 +35,36 @@ export async function POST(request: Request) {
     const signal = AbortSignal.any([
       request.signal,
       abort.signal,
-      AbortSignal.timeout(180000),
+      AbortSignal.timeout(1800000),
     ]);
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          await labelTables(
+          await researchLabels({
             inputs,
-            body.model.trim(),
-            session.apiKey,
+            tables,
+            functions: archive?.functions ?? [],
+            connectionId: session.id,
+            model: body.model.trim(),
+            apiKey: session.apiKey,
             signal,
-            (result) => {
+            execute: (sql, allowed, querySignal) =>
+              executeQuery(
+                sql,
+                allowed.filter((name) =>
+                  tables.some((t) => t.name === name && !t.notUsed),
+                ),
+                session.url,
+                querySignal,
+              ),
+            onResult: (result) => {
               if (!signal.aborted)
                 controller.enqueue(
                   encoder.encode(JSON.stringify(result) + "\n"),
                 );
             },
-          );
+          });
           if (!signal.aborted)
             controller.enqueue(
               encoder.encode(JSON.stringify({ done: true }) + "\n"),

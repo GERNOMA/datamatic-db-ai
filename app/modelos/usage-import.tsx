@@ -13,6 +13,7 @@ export type TableUpdate = {
   name: string;
   notUsed?: boolean;
   description?: string;
+  labelEvidence?: Table["labelEvidence"];
 };
 export type ModelWorkspaceProps = {
   tables: Table[];
@@ -41,6 +42,7 @@ export default function UsageImport({
   const [results, setResults] = useState<LabelResult[]>([]);
   const [total, setTotal] = useState(0);
   const [message, setMessage] = useState("");
+  const [stages, setStages] = useState<Record<string, string>>({});
   const worker = useRef<Worker | null>(null);
   const abort = useRef<AbortController | null>(null);
   useEffect(
@@ -48,7 +50,7 @@ export default function UsageImport({
       worker.current?.terminate();
       abort.current?.abort();
     },
-    [],
+    [connectionId],
   );
   const usages = groupTableUsage(imported?.models || []);
   const known = new Map(tables.map((t) => [t.name, t]));
@@ -102,6 +104,7 @@ export default function UsageImport({
     setMessage("");
     setResults([]);
     setTotal(targets.length);
+    setStages({});
     let completed = 0;
     try {
       const response = await fetch("/api/labels", {
@@ -136,10 +139,29 @@ export default function UsageImport({
             done = true;
             continue;
           }
+          if (controller.signal.aborted) break;
+          if (item.stage) {
+            setStages((previous) => ({
+              ...previous,
+              [item.table]: item.stage,
+            }));
+            continue;
+          }
+          setStages((previous) => {
+            const next = { ...previous };
+            delete next[item.table];
+            return next;
+          });
           completed++;
           setResults((previous) => [...previous, item]);
           if (typeof item.description === "string")
-            onUpdate([{ name: item.table, description: item.description }]);
+            onUpdate([
+              {
+                name: item.table,
+                description: item.description,
+                labelEvidence: item.evidence,
+              },
+            ]);
         }
         if (chunk.done) break;
       }
@@ -286,9 +308,17 @@ export default function UsageImport({
         <section className="transform-card">
           <h2>5. Automatic labeling</h2>
           <p>
-            Genera una descripción muy corta para cada tabla activa del ZIP. Se
-            envía una solicitud por tabla, todas en paralelo, con el nombre de
-            la tabla y solo el nombre y archivo de sus funciones.
+            JEV busca evidencias en el código guardado de las funciones
+            vinculadas a cada tabla y revisa el borrador para detectar
+            contradicciones y omisiones. El modelo puede inspeccionar funciones
+            y ejecutar hasta 3 SELECT de solo lectura por tabla antes de guardar
+            una descripción de hasta 240 caracteres.
+          </p>
+          <p className="transform-hint">
+            Guarda el archivo con-codigo en «Archivo guardado en la web» para
+            usar las funciones completas. Sin código vinculado se usa el esquema
+            y las consultas. El esquema, el código seleccionado y los resultados
+            de las consultas se envían a OpenRouter al iniciar.
           </p>
           <label className="yii-model-label">
             Modelo de OpenRouter
@@ -327,7 +357,7 @@ export default function UsageImport({
               }
               onClick={() => label()}
             >
-              Etiquetar {eligible.length} tablas en paralelo
+              Investigar y etiquetar {eligible.length} tablas
             </button>
             {!!errors.length && !running && (
               <button
@@ -351,6 +381,12 @@ export default function UsageImport({
               {errors.length} fallidas
             </p>
           )}
+          {running &&
+            Object.entries(stages).map(([table, stage]) => (
+              <p key={table} role="status">
+                <strong>{table}</strong>: {stage}
+              </p>
+            ))}
           {!!errors.length && (
             <details>
               <summary>Ver solicitudes fallidas</summary>
