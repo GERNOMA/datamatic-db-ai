@@ -1,7 +1,7 @@
 import type { Table } from "./types.ts";
 
 // Probability of yes, in [0, 1]. Tables must be strictly above this threshold.
-export const JEV_CONFIDENCE_THRESHOLD = 0.85;
+export const JEV_CONFIDENCE_THRESHOLD = 0.60;
 export const JEV_MODEL = "typesafe/jev-1.13";
 
 export type DiscoveryContext = { initialized: boolean; tables: string[] };

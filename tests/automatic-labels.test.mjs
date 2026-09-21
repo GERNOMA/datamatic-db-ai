@@ -85,6 +85,9 @@ test("labeling starts all requests in parallel, sends minimal JSON, and retains 
   assert.equal(calls.length, 2);
   for (const body of calls) {
     assert.equal(body.model, "chosen/model");
+    assert.equal(body.max_tokens, undefined);
+    assert.equal(body.max_completion_tokens, 500);
+    assert.deepEqual(body.reasoning, { effort: "minimal", exclude: true });
     const payload = JSON.parse(body.messages[1].content);
     assert.deepEqual(Object.keys(payload).sort(), ["functions", "module"]);
     assert.deepEqual(Object.keys(payload.functions[0]).sort(), [
@@ -98,7 +101,11 @@ test("labeling starts all requests in parallel, sends minimal JSON, and retains 
       choices: [{ message: { content: "Registro de empleados." } }],
     }),
   );
-  pending[1](new Response("limited", { status: 429 }));
+  pending[1](
+    new Response('{"error":{"message":"limited by provider"}}', {
+      status: 429,
+    }),
+  );
   await work;
   assert.ok(
     results.some(
@@ -106,6 +113,66 @@ test("labeling starts all requests in parallel, sends minimal JSON, and retains 
     ),
   );
   assert.ok(results.some((r) => r.table === "two" && r.error.includes("429")));
+  assert.ok(
+    results.some(
+      (r) =>
+        r.table === "two" && r.modelResponse.includes("limited by provider"),
+    ),
+  );
+});
+test("extracts visible text blocks while ignoring encrypted reasoning", async () => {
+  for (const completion of [
+    {
+      choices: [
+        {
+          message: {
+            content: [
+              { type: "reasoning.encrypted", data: "encrypted" },
+              { type: "text", text: "Tabla de empleados." },
+            ],
+          },
+        },
+      ],
+    },
+    {
+      output: [
+        { type: "reasoning", encrypted_content: "encrypted" },
+        {
+          type: "message",
+          content: [{ type: "output_text", text: "Tabla de empleados." }],
+        },
+      ],
+    },
+  ]) {
+    const results = [];
+    await labelTables(
+      [input("employee")],
+      "chosen/model",
+      "key",
+      new AbortController().signal,
+      (result) => results.push(result),
+      async () => Response.json(completion),
+    );
+    assert.equal(results[0].description, "Tabla de empleados.");
+  }
+});
+test("invalid model output is included in the error and capped", async () => {
+  const results = [];
+  await labelTables(
+    [input("employee")],
+    "chosen/model",
+    "key",
+    new AbortController().signal,
+    (result) => results.push(result),
+    async () =>
+      Response.json({
+        choices: [{ message: { content: "x".repeat(5000) } }],
+      }),
+  );
+  assert.match(results[0].error, /240/);
+  assert.ok(results[0].modelResponse.startsWith("x".repeat(100)));
+  assert.ok(results[0].modelResponse.endsWith("…respuesta recortada"));
+  assert.ok(results[0].modelResponse.length < 4100);
 });
 test("canceled batches do not start provider calls or save results", async () => {
   const controller = new AbortController();

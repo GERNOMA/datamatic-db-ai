@@ -357,7 +357,13 @@ export default function UsageImport({
               <ul className="yii-warnings">
                 {errors.map((r) => (
                   <li key={r.table}>
-                    {r.table}: {r.error}
+                    <strong>{r.table}</strong>: {r.error}
+                    {r.modelResponse && (
+                      <details className="label-response">
+                        <summary>Ver respuesta del modelo</summary>
+                        <pre>{r.modelResponse}</pre>
+                      </details>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -31,6 +31,18 @@
   gap: 8px;
   max-width: 480px;
 }
+.label-response {
+  margin-top: 8px;
+}
+.label-response pre {
+  margin-top: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 7px;
+  background: #f4f6f1;
+  color: #4a544d;
+}
 .yii-inputs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

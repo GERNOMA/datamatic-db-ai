@@ -8,7 +8,60 @@ export type LabelResult = {
   table: string;
   description?: string;
   error?: string;
+  modelResponse?: string;
 };
+
+const responsePreview = (value: string) =>
+  value.length > 4000 ? `${value.slice(0, 4000)}\n…respuesta recortada` : value;
+
+class LabelResponseError extends Error {
+  modelResponse?: string;
+  constructor(message: string, modelResponse?: string) {
+    super(message);
+    this.modelResponse = modelResponse;
+  }
+}
+
+function extractText(completion: unknown): string | undefined {
+  if (!completion || typeof completion !== "object") return undefined;
+  const value = completion as Record<string, unknown>;
+  const choices = Array.isArray(value.choices) ? value.choices : [];
+  const message = (choices[0] as Record<string, unknown> | undefined)?.message;
+  const content =
+    message && typeof message === "object"
+      ? (message as Record<string, unknown>).content
+      : undefined;
+  if (typeof content === "string" && content.trim()) return content.trim();
+  const blocks = [
+    ...(Array.isArray(content) ? content : []),
+    ...(Array.isArray(value.output)
+      ? value.output.flatMap((item) =>
+          item &&
+          typeof item === "object" &&
+          Array.isArray((item as Record<string, unknown>).content)
+            ? ((item as Record<string, unknown>).content as unknown[])
+            : [],
+        )
+      : []),
+  ];
+  const text = blocks
+    .filter(
+      (block) =>
+        block &&
+        typeof block === "object" &&
+        ["text", "output_text"].includes(
+          String((block as Record<string, unknown>).type),
+        ) &&
+        typeof (block as Record<string, unknown>).text === "string",
+    )
+    .map((block) => (block as Record<string, string>).text)
+    .join("")
+    .trim();
+  if (text) return text;
+  return typeof value.output_text === "string" && value.output_text.trim()
+    ? value.output_text.trim()
+    : undefined;
+}
 
 export function labelInputs(value: unknown, tables: Table[]): LabelInput[] {
   if (!Array.isArray(value) || !value.length || value.length > 20000)
@@ -66,7 +119,8 @@ export async function labelTables(
             body: JSON.stringify({
               model,
               temperature: 0,
-              max_tokens: 150,
+              max_completion_tokens: 500,
+              reasoning: { effort: "minimal", exclude: true },
               messages: [
                 {
                   role: "system",
@@ -78,19 +132,32 @@ export async function labelTables(
             }),
           },
         );
+        const rawResponse = await response.text();
         if (!response.ok)
-          throw new Error(
+          throw new LabelResponseError(
             `OpenRouter (${response.status}). Revisa el modelo, los créditos o el límite de solicitudes.`,
+            responsePreview(rawResponse),
           );
-        const completion = await response.json();
-        const description = completion.choices?.[0]?.message?.content?.trim();
+        let completion;
+        try {
+          completion = JSON.parse(rawResponse);
+        } catch {
+          throw new LabelResponseError(
+            "OpenRouter devolvió una respuesta que no es JSON válido.",
+            responsePreview(rawResponse),
+          );
+        }
+        const description = extractText(completion);
         if (
           typeof description !== "string" ||
           !description ||
-          description.length > 10000
+          description.length > 1000
         )
-          throw new Error(
+          throw new LabelResponseError(
             "El modelo no devolvió una descripción de hasta 240 caracteres.",
+            responsePreview(
+              typeof description === "string" ? description : rawResponse,
+            ),
           );
         onResult({ table: input.module, description });
       } catch (error) {
@@ -99,6 +166,9 @@ export async function labelTables(
             table: input.module,
             error:
               error instanceof Error ? error.message : "No se pudo etiquetar.",
+            ...(error instanceof LabelResponseError && error.modelResponse
+              ? { modelResponse: error.modelResponse }
+              : {}),
           });
       }
     }),
