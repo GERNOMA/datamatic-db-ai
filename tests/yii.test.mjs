@@ -121,7 +121,7 @@ test("same short class names in different namespaces do not collide", () => {
       .functions.some((f) => f.name === "test"),
   );
 });
-test("nested ZIP entries load and export a pair of JSON files per model", () => {
+test("nested ZIP entries load and export three JSON variants per model", () => {
   const archive = zipSync(
     Object.fromEntries([
       ...sources.map((s) => [s.path, strToU8(s.code)]),
@@ -133,12 +133,14 @@ test("nested ZIP entries load and export a pair of JSON files per model", () => 
   assert.equal(loaded[0].path, sources[0].path);
   const result = analyzeYii(loaded);
   const exported = unzipSync(exportYiiZip(result));
-  assert.equal(Object.keys(exported).length, result.models.length * 2 + 1);
+  assert.equal(Object.keys(exported).length, result.models.length * 3 + 1);
   for (const [path, bytes] of Object.entries(exported)) {
     const json = JSON.parse(strFromU8(bytes));
     if (path.startsWith("con-codigo"))
       assert.equal(typeof json.functions[0].rawCode, "string");
     if (path.startsWith("sin-codigo"))
       assert.equal(json.functions[0].rawCode, undefined);
+    if (path.startsWith("simplificado"))
+      assert.deepEqual(Object.keys(json.functions[0]).sort(), ["file", "name"]);
   }
 });

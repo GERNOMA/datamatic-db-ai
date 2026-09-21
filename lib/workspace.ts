@@ -45,6 +45,7 @@ export function validTables(value: unknown): value is Table[] {
         record(t) &&
         typeof t.name === "string" &&
         (t.description === undefined || typeof t.description === "string") &&
+        (t.notUsed === undefined || typeof t.notUsed === "boolean") &&
         Array.isArray(t.fields) &&
         t.fields.every(
           (f) =>

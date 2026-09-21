@@ -8,6 +8,7 @@ import {
 } from "@/lib/jev";
 import type { QueryStep, Table } from "@/lib/types";
 import type { Connection as MySQLConnection } from "mysql2";
+import { applyExclusions, contextTables } from "@/lib/table-context";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
@@ -24,9 +25,34 @@ export async function POST(request: Request) {
     )
       throw new Error("Introduce una pregunta de hasta 8000 caracteres.");
     const drStrange = body.drStrange === true;
+    const before = session.tables
+      .filter((t) => t.notUsed)
+      .map((t) => t.name)
+      .sort()
+      .join("\n");
+    session.tables = applyExclusions(
+      session.tables,
+      body.notUsedTables ??
+        session.tables.filter((t) => t.notUsed).map((t) => t.name),
+    );
+    const after = session.tables
+      .filter((t) => t.notUsed)
+      .map((t) => t.name)
+      .sort()
+      .join("\n");
+    if (before !== after) session.discoveries?.clear();
+    const available = contextTables(session.tables);
     if (!Array.isArray(body.tables) || (!drStrange && !body.tables.length))
       throw new Error("Selecciona un grupo que contenga al menos una tabla.");
-    const candidates: Table[] = drStrange ? session.tables : body.tables;
+    const candidates: Table[] = drStrange
+      ? available
+      : body.tables.filter((t: Table) =>
+          available.some((a) => a.name === t?.name),
+        );
+    if (!candidates.length)
+      throw new Error(
+        "No hay tablas activas para consultar. Revisa las casillas NOT USED en Base de Datos.",
+      );
     const schema = candidates.map((candidate) => {
       const actual = session.tables.find((t) => t.name === candidate?.name);
       if (!actual)
@@ -80,7 +106,7 @@ export async function POST(request: Request) {
     const messages: Message[] = [
       { role: "system", content: chatPrompt(freeVisualization, drStrange) },
       { role: "system", content: JSON.stringify({ tables: visibleSchema() }) },
-      ...(Array.isArray(body.history)
+      ...(before === after && Array.isArray(body.history)
         ? body.history
             .slice(-6)
             .filter(

@@ -1,5 +1,6 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { modelJson, type Analysis, type PhpSource } from "./yii-analysis.ts";
+import { simpleModel } from "./yii-import.ts";
 
 export const MAX_BYTES = 100 * 1024 * 1024;
 const MAX_FILES = 20000;
@@ -26,6 +27,9 @@ export function exportYiiZip(analysis: Analysis): Uint8Array {
     const name = `${String(index + 1).padStart(4, "0")}-${model.model.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
     entries[`sin-codigo/${name}.json`] = strToU8(modelJson(model, false));
     entries[`con-codigo/${name}.json`] = strToU8(modelJson(model, true));
+    entries[`simplificado/${name}.json`] = strToU8(
+      JSON.stringify(simpleModel(model), null, 2),
+    );
   });
   entries["informe.json"] = strToU8(
     JSON.stringify(

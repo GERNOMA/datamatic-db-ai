@@ -33,14 +33,22 @@ JEV uses the same OpenRouter key through the [Decisions API](https://github.com/
 
 Open **Modelos, Controladores y Más** in the navigation (or `/modelos`). Select a ZIP, an entire folder including subfolders, or multiple PHP files. Analysis runs locally in a cancellable browser worker, without executing PHP or sending source code to an AI service. Limits: 20,000 PHP files and 100 MB of uncompressed source per analysis.
 
-Download a ZIP with one JSON pair per detected Yii2 ActiveRecord class: `sin-codigo/` contains the logical table (`module`), model identity, referenced functions, controller or owning class, source path, line, and matching evidence; `con-codigo/` adds the exact method declaration (`rawCode`) and text inside its braces (`body`). Non-controller functions have `controller: null`. The archive includes `informe.json` with parsing failures and missing base classes. Separate models sharing a table retain separate exports.
+Download a ZIP with three JSON files per detected Yii2 ActiveRecord class: `sin-codigo/` contains the logical table (`module`), model identity, referenced functions, controller or owning class, source path, line, and matching evidence; `con-codigo/` adds the exact method declaration (`rawCode`) and text inside its braces (`body`); `simplificado/` keeps only `name` and `file` per function. Non-controller functions have `controller: null`. The archive includes `informe.json` with parsing failures and missing base classes. Separate models sharing a table retain separate exports.
+
+The page is the rightmost tab in the existing application. At the bottom, upload the generated ZIP to review table usage against the connected database. **Aplicar revisión** marks tables **NOT USED** when they are absent from the ZIP or have no functions owned by another class (global functions count as external use). For shared tables, external use in any exported model counts as use. Matching uses exact table names; unresolved names and prefix mismatches are reported. Older ZIPs without `simplificado/` are supported by deriving the simple data from `sin-codigo/`.
+
+The **NOT USED** checkbox in Base de Datos can mark or re-enable any table. Flags persist per connection in the browser workspace, across reconnects and workspace JSON exports/imports. Excluded tables are removed from chat context, JEV discovery, SQL allowlists, and labeling. Changing the flags clears the current conversation. Imports preserve existing exclusions until manually unchecked.
+
+After applying the review, **Automatic labeling** uses an initially empty OpenRouter model field and the connection's existing API key. One request per eligible table starts in parallel. Each sends only the table name and function names/file paths; no PHP code or database rows. Valid descriptions (one short Spanish sentence, up to 240 characters) replace table descriptions as results arrive and are saved in the workspace. Progress, cancellation and failed-only retry are supported. Provider rate limits may cause partial failures; successful descriptions are retained. No request is sent until the user starts labeling.
 
 Detection follows included ActiveRecord inheritance, PHP namespaces and aliases, class references, and calls to included static or `$this` methods (including inherited helpers such as `findModel`). Include custom base classes with your project. Table names are explicit, inherited, convention-based, or unresolved; dynamic `tableName()` expressions are preserved without inventing a table. Yii connection prefixes are not resolved. Form models without tables are excluded. This is static context extraction for use with an AI, not a complete runtime call graph: dynamic dispatch, reflection, raw SQL, trait methods and some variable flows are not resolved. Results stay in memory until you leave or reload the page.
 
 ## Plain code layout
 
 - `app/page.tsx`: the main screens and their state, with direct fetch calls.
-- `app/modelos/page.tsx`: recursive Yii2 project upload, results and JSON downloads.
+- `app/modelos/models-page.tsx`: recursive Yii2 project upload, results and JSON downloads.
+- `app/modelos/usage-import.tsx`: usage review, exclusions and automatic labeling.
+- `app/api/labels/route.ts`: parallel OpenRouter labeling with streamed results.
 - `app/modelos/yii.worker.ts`: background parsing and ZIP generation.
 - `lib/yii-analysis.ts`: model discovery, table resolution and function mapping.
 - `app/globals.css`: all responsive styling.

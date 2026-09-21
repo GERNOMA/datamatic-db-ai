@@ -4,10 +4,32 @@
   max-width: 1180px;
   margin: 0 auto;
 }
-.yii-back {
-  display: inline-block;
-  margin-bottom: 24px;
-  color: var(--green);
+.not-used-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: #fff5e8;
+  font-size: 13px;
+}
+.not-used-control input {
+  flex: 0 0 auto;
+  width: auto;
+}
+.not-used-badge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: #8d5523;
+  background: #fff0d9;
+  padding: 3px 5px;
+  border-radius: 4px;
+}
+.yii-model-label {
+  display: grid;
+  gap: 8px;
+  max-width: 480px;
 }
 .yii-inputs {
   display: grid;

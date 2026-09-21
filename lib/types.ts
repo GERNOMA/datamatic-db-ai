@@ -5,7 +5,12 @@ export type Field = {
   nullable: boolean;
   description?: string;
 };
-export type Table = { name: string; description?: string; fields: Field[] };
+export type Table = {
+  name: string;
+  description?: string;
+  notUsed?: boolean;
+  fields: Field[];
+};
 export type Group = { id: string; name: string; tables: string[] };
 
 export type QueryStep = {

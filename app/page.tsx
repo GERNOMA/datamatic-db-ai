@@ -12,6 +12,8 @@ import {
 } from "@/lib/workspace";
 import AnswerView from "./answer-view";
 import TransformPage from "./transform-page";
+import ModelsPage from "./modelos/models-page";
+import type { TableUpdate } from "./modelos/usage-import";
 import { applyCatalog } from "@/lib/catalog";
 import type { ChatAnswer, Field, Group, Table } from "@/lib/types";
 
@@ -23,7 +25,7 @@ type Connection = {
   aiReady: boolean;
 };
 type Result = { question: string; answer?: ChatAnswer; error?: string };
-type Tab = "Chat" | "Database" | "Connect" | "Transformar";
+type Tab = "Chat" | "Database" | "Connect" | "Transformar" | "Modelos";
 
 function Icon({ name, size = 18 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
@@ -141,6 +143,7 @@ export default function Home() {
         return {
           ...t,
           description: previous?.description || "",
+          notUsed: previous?.notUsed ?? t.notUsed ?? false,
           fields: t.fields.map((f) => ({
             ...f,
             description:
@@ -184,6 +187,8 @@ export default function Home() {
   );
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "modelos")
+      setTab("Modelos");
     let cancelled = false;
     async function restore() {
       try {
@@ -363,12 +368,14 @@ export default function Home() {
     }
   }
 
-  const contextTables = tables.filter((t) =>
-    drStrange
-      ? discoveredTables.includes(t.name)
-      : groups.some(
-          (g) => selectedGroups.includes(g.id) && g.tables.includes(t.name),
-        ),
+  const contextTables = tables.filter(
+    (t) =>
+      !t.notUsed &&
+      (drStrange
+        ? discoveredTables.includes(t.name)
+        : groups.some(
+            (g) => selectedGroups.includes(g.id) && g.tables.includes(t.name),
+          )),
   );
   const currentTable = tables.find((t) => t.name === selectedTable);
 
@@ -410,7 +417,8 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: text,
-          tables: drStrange ? tables : contextTables,
+          tables: drStrange ? tables.filter((t) => !t.notUsed) : contextTables,
+          notUsedTables: tables.filter((t) => t.notUsed).map((t) => t.name),
           drStrange,
           conversationId: conversationId.current,
           history,
@@ -454,6 +462,25 @@ export default function Home() {
     );
   }
 
+  function updateModelTables(updates: TableUpdate[]) {
+    const changes = new Map(updates.map((update) => [update.name, update]));
+    setTables((previous) =>
+      previous.map((table) => {
+        const change = changes.get(table.name);
+        if (!change) return table;
+        return {
+          ...table,
+          ...(change.notUsed !== undefined ? { notUsed: change.notUsed } : {}),
+          ...(change.description !== undefined && !table.notUsed
+            ? { description: change.description }
+            : {}),
+        };
+      }),
+    );
+    if (updates.some((update) => update.notUsed !== undefined))
+      resetConversation();
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -466,33 +493,30 @@ export default function Home() {
           datamatic<span className="beta">BETA</span>
         </Link>
         <nav aria-label="Navegación principal">
-          <Link href="/modelos" className="nav-item">
-            <Icon name="folder" />
-            Modelos, Controladores y Más
-          </Link>
-          {(["Chat", "Database", "Connect", "Transformar"] as Tab[]).map(
-            (item) => (
-              <button
-                key={item}
-                disabled={busy}
-                className={tab === item ? "nav-item active" : "nav-item"}
-                onClick={() => {
-                  setTab(item);
-                  setError("");
-                }}
-              >
-                <Icon name={item.toLowerCase()} />
+          {(
+            ["Chat", "Database", "Connect", "Transformar", "Modelos"] as Tab[]
+          ).map((item) => (
+            <button
+              key={item}
+              disabled={busy}
+              className={tab === item ? "nav-item active" : "nav-item"}
+              onClick={() => {
+                setTab(item);
+                setError("");
+              }}
+            >
+              <Icon name={item.toLowerCase()} />
+              {
                 {
-                  {
-                    Chat: "Chat",
-                    Database: "Base de Datos",
-                    Connect: "Conectarse",
-                    Transformar: "Transformar",
-                  }[item]
-                }
-              </button>
-            ),
-          )}
+                  Chat: "Chat",
+                  Database: "Base de Datos",
+                  Connect: "Conectarse",
+                  Transformar: "Transformar",
+                  Modelos: "Modelos, Controladores y Más",
+                }[item]
+              }
+            </button>
+          ))}
         </nav>
         <button
           className="connection-status"
@@ -776,7 +800,15 @@ export default function Home() {
                           />
                           <span>
                             <strong>{g.name}</strong>
-                            <small>{g.tables.length} tablas</small>
+                            <small>
+                              {
+                                tables.filter(
+                                  (t) =>
+                                    !t.notUsed && g.tables.includes(t.name),
+                                ).length
+                              }{" "}
+                              tablas activas
+                            </small>
                           </span>
                           <Icon name="folder" size={16} />
                         </label>
@@ -914,6 +946,17 @@ export default function Home() {
           </div>
         </main>
       )}
+
+      <div hidden={tab !== "Modelos"}>
+        <ModelsPage
+          tables={tables}
+          connectionId={connection?.id}
+          connectionName={connection?.name}
+          aiReady={connection?.aiReady}
+          onUpdate={updateModelTables}
+          onConnect={() => setTab("Connect")}
+        />
+      </div>
 
       {tab === "Transformar" && (
         <TransformPage
@@ -1212,6 +1255,9 @@ export default function Home() {
                     >
                       <Icon name="grid" size={16} />
                       <span>{t.name}</span>
+                      {t.notUsed && (
+                        <span className="not-used-badge">NOT USED</span>
+                      )}
                       <small>{t.fields.length}</small>
                     </button>
                   ))}
@@ -1287,6 +1333,25 @@ export default function Home() {
                         {currentTable.fields.length} campos
                       </span>
                     </div>
+                    <label className="not-used-control">
+                      <input
+                        type="checkbox"
+                        checked={!!currentTable.notUsed}
+                        disabled={busy}
+                        onChange={(e) =>
+                          updateModelTables([
+                            {
+                              name: currentTable.name,
+                              notUsed: e.target.checked,
+                            },
+                          ])
+                        }
+                      />
+                      <span>
+                        <strong>NOT USED</strong> — excluir esta tabla de todo
+                        el contexto de IA y del etiquetado automático.
+                      </span>
+                    </label>
                     <label className="form-label" htmlFor="table-description">
                       ¿Qué contiene esta tabla?
                     </label>

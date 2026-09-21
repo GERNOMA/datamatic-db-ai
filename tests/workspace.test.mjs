@@ -52,6 +52,16 @@ test("JSON round trip retains credentials, schema descriptions, groups and prefe
     emptyWorkspace(),
   );
 });
+test("NOT USED persists in saved workspaces and rejects invalid flags", () => {
+  const value = sample();
+  value.connections[0].tables[0].notUsed = true;
+  const restored = readWorkspace(
+    storage([[WORKSPACE_KEY, JSON.stringify(value)]]),
+  );
+  assert.equal(restored.connections[0].tables[0].notUsed, true);
+  value.connections[0].tables[0].notUsed = "true";
+  assert.throws(() => parseWorkspace(JSON.stringify(value)));
+});
 test("rejects malformed documents, duplicate IDs, and dangling references", () => {
   assert.throws(() => parseWorkspace("not JSON"));
   for (const change of [
