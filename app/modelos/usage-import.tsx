@@ -321,6 +321,11 @@ export default function UsageImport({
             intactos.
           </p>
           <p className="transform-hint">
+            Se investigan hasta 50 tablas simultáneamente. OpenRouter puede
+            aplicar sus propios límites de velocidad; los éxitos se conservan
+            aunque alguna tabla falle.
+          </p>
+          <p className="transform-hint">
             Para reducir el coste, el código breve se lee directamente y las
             comprobaciones JEV se agrupan. Los borradores sin incidencias pueden
             guardarse tras la revisión, sin otra llamada al modelo. Las

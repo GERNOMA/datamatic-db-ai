@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { researchLabels } from "../lib/researched-labels.ts";
+import { LABEL_CONCURRENCY, researchLabels } from "../lib/researched-labels.ts";
 import { validTables } from "../lib/workspace.ts";
 import { applyFieldLabels } from "../lib/field-labels.ts";
 
@@ -567,4 +567,42 @@ test("batch scores stay attached to their own functions", async () => {
     result.results[0].evidence.functions.map((f) => f.id),
     ["fn13"],
   );
+});
+
+test("starts up to 50 table descriptions concurrently", async () => {
+  assert.equal(LABEL_CONCURRENCY, 50);
+  const controller = new AbortController();
+  const tables = Array.from({ length: 51 }, (_, i) => ({
+    name: `table_${i}`,
+    fields: [],
+  }));
+  const pending = [];
+  const work = researchLabels({
+    inputs: tables.map((item) => ({ module: item.name, functions: [] })),
+    tables,
+    functions: [],
+    connectionId: "concurrency-test",
+    model: "writer",
+    apiKey: "key",
+    signal: controller.signal,
+    execute: async () => {
+      throw new Error("SQL should not run");
+    },
+    onResult: () => {},
+    fetcher: async () =>
+      new Promise((resolve) => {
+        pending.push(resolve);
+      }),
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(pending.length, 50);
+  controller.abort();
+  for (const resolve of pending)
+    resolve(
+      Response.json({
+        choices: [{ message: { content: JSON.stringify(draft) } }],
+      }),
+    );
+  await work;
+  assert.equal(pending.length, 50);
 });

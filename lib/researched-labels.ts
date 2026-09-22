@@ -14,8 +14,9 @@ const hash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 // Only code/schema decisions are cached, never database rows. Scope by connection.
 const decisions = new Map<string, number[]>();
-const MAX_CALLS = 8;
+const MAX_CALLS = 20;
 const MAX_QUERIES = 3;
+export const LABEL_CONCURRENCY = 50;
 const DIRECT_CODE_BYTES = 12_000;
 const JEV_BATCH_BYTES = 24_000;
 const JEV_BATCH_FUNCTIONS = 8;
@@ -69,8 +70,9 @@ Cite only inspected evidence, including schema:table for schema facts. Do not in
 
 export async function researchLabels(options: Options) {
   const { signal, onResult } = options;
-  // Bound simultaneous writers and database connections; JEV runs in small parallel batches.
-  await parallel(options.inputs, 4, async (input) => {
+  // Process up to 50 table descriptions at once. Per-table writer, JEV and SQL
+  // budgets still bound the work performed by each concurrent task.
+  await parallel(options.inputs, LABEL_CONCURRENCY, async (input) => {
     if (signal.aborted) return;
     const tableSignal = AbortSignal.any([signal, AbortSignal.timeout(180000)]);
     try {
