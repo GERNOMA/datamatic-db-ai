@@ -3,12 +3,13 @@ import test from "node:test";
 import { readFile, unlink } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
-import { strToU8, zipSync } from "fflate";
+import { strToU8, unzipSync, zipSync } from "fflate";
 import { parseCodeModels, functionsForTables } from "../lib/code-context.ts";
 import {
   decodeCodeArchive,
   saveCodeArchive,
   readCodeArchive,
+  writeCodeArchive,
 } from "../lib/code-archive.ts";
 import { discoverFunctions } from "../lib/jev.ts";
 import { chatPrompt, runChat, MAX_DISCOVERIES } from "../lib/chat.ts";
@@ -34,7 +35,89 @@ const entries = {
 };
 const answer = JSON.stringify({ type: "answer", text: "Resultado", views: [] });
 
-test("real RAR5 imports full code and saves the original archive across reads", async () => {
+test("saved code and downloads retain only database tables, with distinct original totals", async () => {
+  const id = `test-${randomUUID()}`;
+  const source = {
+    ...entries,
+    "con-codigo/another-shift.json": strToU8(
+      JSON.stringify(model("OtherShift", "shifts")),
+    ),
+    "con-codigo/empty.json": strToU8(
+      JSON.stringify(model("Empty", "empty", [])),
+    ),
+    "con-codigo/unmapped.json": strToU8(
+      JSON.stringify(model("Unmapped", null)),
+    ),
+  };
+  try {
+    const info = await saveCodeArchive(id, zipSync(source), "models.zip", [
+      "shifts",
+      "empty",
+      "only_in_db",
+    ]);
+    assert.equal(info.storedTables, 2);
+    assert.equal(info.jsonTables, 3);
+    assert.equal(info.jsonModels, 5);
+    assert.equal(info.models, 3);
+    assert.equal(info.functions, 1);
+    const saved = await readCodeArchive(id);
+    assert.deepEqual(saved.info, info);
+    assert.deepEqual(saved.functions[0].tables, ["shifts"]);
+    assert.deepEqual(saved.functions[0].models, ["Shift", "OtherShift"]);
+    assert.deepEqual(
+      Object.keys(unzipSync(Buffer.from(saved.data, "base64"))).sort(),
+      [
+        "con-codigo/another-shift.json",
+        "con-codigo/empty.json",
+        "con-codigo/shift.json",
+      ],
+    );
+    const narrowed = await readCodeArchive(id, ["empty"]);
+    assert.equal(narrowed.info.storedTables, 1);
+    assert.equal(narrowed.info.jsonTables, 3);
+    assert.equal(narrowed.info.jsonModels, 5);
+    assert.equal(narrowed.info.savedAt, info.savedAt);
+    assert.deepEqual(narrowed.functions, []);
+    await saveCodeArchive(id, zipSync(source), "models.zip", ["unrelated"]);
+    const empty = await readCodeArchive(id);
+    assert.equal(empty.info.storedTables, 0);
+    assert.equal(empty.info.jsonTables, 3);
+    assert.equal(empty.info.models, 0);
+    assert.deepEqual(empty.functions, []);
+    assert.deepEqual(
+      Object.keys(unzipSync(Buffer.from(empty.data, "base64"))),
+      [],
+    );
+
+    await writeCodeArchive(id, {
+      info: {
+        name: "legacy.zip",
+        savedAt: info.savedAt,
+        models: 2,
+        functions: 1,
+      },
+      functions: parseCodeModels(entries),
+      data: Buffer.from(zipSync(entries)).toString("base64"),
+    });
+    const migrated = await readCodeArchive(id, ["shifts"]);
+    assert.equal(migrated.info.storedTables, 1);
+    assert.equal(migrated.info.jsonTables, 2);
+    assert.equal(migrated.info.savedAt, info.savedAt);
+    assert.deepEqual(migrated.functions[0].models, ["Shift"]);
+    assert.deepEqual((await readCodeArchive(id)).info, migrated.info);
+  } finally {
+    await unlink(
+      path.join(
+        process.cwd(),
+        ".datamatic",
+        "code",
+        `${createHash("sha256").update(id).digest("hex")}.json`,
+      ),
+    ).catch(() => {});
+  }
+});
+
+test("real RAR5 imports full code and saves a filtered ZIP across reads", async () => {
   const rar = await readFile(
     new URL("./fixtures/code-models.rar", import.meta.url),
   );
@@ -46,16 +129,22 @@ test("real RAR5 imports full code and saves the original archive across reads", 
   );
   const id = `test-${randomUUID()}`;
   try {
-    await saveCodeArchive(id, rar, "code-models.rar");
+    await saveCodeArchive(id, rar, "code-models.rar", functions[0].tables);
     const saved = await readCodeArchive(id);
     assert.deepEqual(saved.functions, functions);
-    assert.deepEqual(Buffer.from(saved.data, "base64"), rar);
+    assert.deepEqual(
+      await decodeCodeArchive(
+        Buffer.from(saved.data, "base64"),
+        saved.info.name,
+      ),
+      functions,
+    );
     assert.equal(await readCodeArchive(`${id}-other-db`), null);
     await assert.rejects(
-      saveCodeArchive(id, new Uint8Array([1, 2]), "bad.rar"),
+      saveCodeArchive(id, new Uint8Array([1, 2]), "bad.rar", ["shifts"]),
     );
-    assert.equal((await readCodeArchive(id)).info.name, "code-models.rar");
-    await saveCodeArchive(id, zipSync(entries), "replacement.zip");
+    assert.equal((await readCodeArchive(id)).info.name, "code-models.zip");
+    await saveCodeArchive(id, zipSync(entries), "replacement.zip", ["shifts"]);
     assert.equal((await readCodeArchive(id)).info.name, "replacement.zip");
   } finally {
     await unlink(

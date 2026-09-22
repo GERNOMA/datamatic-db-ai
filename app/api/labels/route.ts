@@ -23,7 +23,10 @@ export async function POST(request: Request) {
       throw new Error("Introduce el modelo de OpenRouter para el etiquetado.");
     const tables = applyExclusions(session.tables, body.notUsedTables);
     const inputs = labelInputs(body.tables, tables);
-    const archive = await readCodeArchive(session.id);
+    const archive = await readCodeArchive(
+      session.id,
+      session.tables.map((table) => table.name),
+    );
     if (
       tables.some(
         (table, index) => !!table.notUsed !== !!session.tables[index].notUsed,

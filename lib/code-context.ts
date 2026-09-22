@@ -19,6 +19,9 @@ export type CodeArchiveInfo = {
   savedAt: string;
   functions: number;
   models: number;
+  storedTables: number;
+  jsonTables: number;
+  jsonModels: number;
 };
 
 // Persist all selected code, but expose only additions in each discovery message.
@@ -38,6 +41,7 @@ export function addDiscoveredFunctions(
 
 export function parseCodeModels(
   entries: Record<string, Uint8Array>,
+  allowEmpty = false,
 ): CodeFunction[] {
   const functions = new Map<string, CodeFunction>();
   for (const [path, bytes] of Object.entries(entries)) {
@@ -89,7 +93,7 @@ export function parseCodeModels(
       functions.set(id, value);
     }
   }
-  if (!functions.size)
+  if (!functions.size && !allowEmpty)
     throw new Error(
       "El archivo necesita JSON con funciones completas en con-codigo/. Exporta primero el proyecto con este analizador.",
     );

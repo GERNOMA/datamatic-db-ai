@@ -128,7 +128,10 @@ export async function POST(request: Request) {
     }
     const visibleSchema = () =>
       schema.filter((t) => context!.tables.includes(t.name));
-    const archive = await readCodeArchive(session.id);
+    const archive = await readCodeArchive(
+      session.id,
+      session.tables.map((table) => table.name),
+    );
     if (archive || body.conversationId) {
       if (
         typeof body.conversationId !== "string" ||

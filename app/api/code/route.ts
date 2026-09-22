@@ -9,7 +9,10 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const session = await getSession();
-    const archive = await readCodeArchive(session.id);
+    const archive = await readCodeArchive(
+      session.id,
+      session.tables.map((table) => table.name),
+    );
     if (new URL(request.url).searchParams.has("download") && archive)
       return new Response(Buffer.from(archive.data, "base64"), {
         headers: {
@@ -19,7 +22,7 @@ export async function GET(request: Request) {
         },
       });
     return Response.json(
-      { archive: archive?.info ?? null },
+      { archive: archive?.info ?? null, databaseTables: session.tables.length },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
@@ -41,8 +44,9 @@ export async function POST(request: Request) {
       session.id,
       new Uint8Array(await file.arrayBuffer()),
       file.name,
+      session.tables.map((table) => table.name),
     );
-    return Response.json({ archive });
+    return Response.json({ archive, databaseTables: session.tables.length });
   } catch (error) {
     return failure(error);
   }

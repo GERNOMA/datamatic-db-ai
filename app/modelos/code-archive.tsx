@@ -9,6 +9,7 @@ export default function CodeArchive({
   connectionId?: string;
 }) {
   const [archive, setArchive] = useState<CodeArchiveInfo | null>(null);
+  const [databaseTables, setDatabaseTables] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -20,6 +21,7 @@ export default function CodeArchive({
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
         setArchive(data.archive);
+        setDatabaseTables(data.databaseTables);
       })
       .catch((e) => {
         if (!controller.signal.aborted) setError(e.message);
@@ -35,6 +37,7 @@ export default function CodeArchive({
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setArchive(data.archive);
+      setDatabaseTables(data.databaseTables);
       setStatus("Guardado. Disponible para la próxima pregunta del chat.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar.");
@@ -56,12 +59,24 @@ export default function CodeArchive({
         <p>Conecta una base de datos para guardar su archivo de código.</p>
       ) : (
         <>
+          {databaseTables !== null && (
+            <p>{databaseTables} tablas en la base de datos actual.</p>
+          )}
           {archive && (
             <div className="code-archive-summary">
               <strong>{archive.name}</strong>
               <span>
                 {archive.models} modelos · {archive.functions} funciones únicas
               </span>
+              <span>
+                {archive.storedTables} tablas guardadas de {archive.jsonTables}{" "}
+                tablas en los JSON
+                {databaseTables !== null &&
+                  ` · ${archive.storedTables} de ${databaseTables} tablas de la base de datos con JSON guardado`}
+              </span>
+              <small>
+                {archive.jsonModels} archivos JSON en la carga original.
+              </small>
               <small>
                 Guardado: {new Date(archive.savedAt).toLocaleString("es")}
               </small>
@@ -95,9 +110,9 @@ export default function CodeArchive({
             />
           </label>
           <p className="transform-hint">
-            El archivo se conserva en el servidor para esta conexión;
-            reemplazarlo no modifica el código ya incorporado al chat. Hasta 100
-            MB.
+            Solo se guardan los JSON de tablas que existen en esta base de
+            datos, en un ZIP filtrado para esta conexión; reemplazarlo no
+            modifica el código ya incorporado al chat. Hasta 100 MB.
           </p>
         </>
       )}
