@@ -292,8 +292,8 @@ export default function Home() {
     setError("");
     setTransferMessage("");
     try {
-      if (file.size > 5 * 1024 * 1024)
-        throw new Error("El JSON no puede superar los 5 MB.");
+      if (file.size > 500 * 1024 * 1024)
+        throw new Error("El JSON no puede superar los 500 MB.");
       const imported = parseWorkspace(await file.text());
       // Check storage before ending the current session; rollback if disconnect fails.
       const previous = localStorage.getItem(WORKSPACE_KEY);
