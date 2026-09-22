@@ -382,7 +382,8 @@ export default function Home() {
       !t.notUsed &&
       (drStrange
         ? discoveredTables.includes(t.name)
-        : groups.some(
+        : discoveredTables.includes(t.name) ||
+          groups.some(
             (g) => selectedGroups.includes(g.id) && g.tables.includes(t.name),
           )),
   );
@@ -427,6 +428,7 @@ export default function Home() {
         body: JSON.stringify({
           question: text,
           tables: drStrange ? tables.filter((t) => !t.notUsed) : contextTables,
+          availableTables: tables.filter((t) => !t.notUsed),
           notUsedTables: tables.filter((t) => t.notUsed).map((t) => t.name),
           drStrange,
           conversationId: conversationId.current,
@@ -437,8 +439,9 @@ export default function Home() {
       const data = await response.json();
       if (Array.isArray(data.contextFunctions))
         setContextFunctions(data.contextFunctions);
+      if (Array.isArray(data.contextTables))
+        setDiscoveredTables(data.contextTables);
       if (!response.ok) throw new Error(data.error);
-      if (drStrange) setDiscoveredTables(data.contextTables ?? []);
       setResults((previous) => [
         ...previous.slice(0, -1),
         { question: text, answer: data },

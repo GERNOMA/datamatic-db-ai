@@ -74,7 +74,7 @@ export async function researchLabels(options: Options) {
   // budgets still bound the work performed by each concurrent task.
   await parallel(options.inputs, LABEL_CONCURRENCY, async (input) => {
     if (signal.aborted) return;
-    const tableSignal = AbortSignal.any([signal, AbortSignal.timeout(180000)]);
+    const tableSignal = AbortSignal.any([signal, AbortSignal.timeout(1800000)]);
     try {
       const result = await researchTable(input, {
         ...options,
@@ -193,7 +193,7 @@ async function researchTable(
                 Authorization: `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
               },
-              signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
+              signal: AbortSignal.any([signal, AbortSignal.timeout(600000)]),
               body: JSON.stringify({
                 model: JEV_MODEL,
                 state,
@@ -344,7 +344,7 @@ async function researchTable(
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(600000)]),
         body: JSON.stringify({
           model,
           temperature: 0,

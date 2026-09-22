@@ -8,7 +8,11 @@ import {
   type DiscoveryContext,
 } from "@/lib/jev";
 import type { Table } from "@/lib/types";
-import { applyExclusions, contextTables } from "@/lib/table-context";
+import {
+  applyExclusions,
+  contextTables,
+  resolveContextTables,
+} from "@/lib/table-context";
 import { readCodeArchive } from "@/lib/code-archive";
 import {
   addDiscoveredFunctions,
@@ -19,6 +23,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   let selectedFunctions: SelectedFunction[] = [];
+  let context: DiscoveryContext | undefined;
   try {
     checkOrigin(request);
     const session = await getSession();
@@ -60,14 +65,17 @@ export async function POST(request: Request) {
       throw new Error(
         "No hay tablas activas para consultar. Revisa las casillas NOT USED en Base de Datos.",
       );
-    const schema = candidates.map((candidate) => {
+    const schema = available.map((candidate) => {
       const actual = session.tables.find((t) => t.name === candidate?.name);
       if (!actual)
         throw new Error(
           "Una tabla seleccionada ya no existe. Vuelve a conectarte para actualizar el esquema.",
         );
       const provided =
-        body.tables.find((t: Table) => t?.name === actual.name) ?? actual;
+        (Array.isArray(body.availableTables)
+          ? body.availableTables
+          : body.tables
+        ).find((t: Table) => t?.name === actual.name) ?? actual;
       return {
         name: actual.name,
         ...(provided.description
@@ -91,8 +99,7 @@ export async function POST(request: Request) {
         }),
       };
     });
-    let context: DiscoveryContext | undefined;
-    if (drStrange) {
+    {
       if (
         typeof body.conversationId !== "string" ||
         !/^[0-9a-f-]{36}$/i.test(body.conversationId)
@@ -106,9 +113,13 @@ export async function POST(request: Request) {
         context = { initialized: false, tables: [] };
         contexts.set(body.conversationId, context);
       }
+      context.tables = context.tables.filter((name) =>
+        available.some((t) => t.name === name),
+      );
+      if (!drStrange) addDiscoveredTables(context, candidates);
     }
     const visibleSchema = () =>
-      context ? schema.filter((t) => context.tables.includes(t.name)) : schema;
+      schema.filter((t) => context!.tables.includes(t.name));
     const archive = await readCodeArchive(session.id);
     if (archive || body.conversationId) {
       if (
@@ -197,7 +208,7 @@ export async function POST(request: Request) {
         );
       },
       freeVisualization,
-      context
+      drStrange && context
         ? {
             required: !context.initialized,
             discover: async (purpose) => {
@@ -207,7 +218,7 @@ export async function POST(request: Request) {
                 session.apiKey,
                 signal,
               );
-              const added = addDiscoveredTables(context, matches);
+              const added = addDiscoveredTables(context!, matches);
               return {
                 purpose,
                 matchedTables: matches.map((t) => t.name),
@@ -238,6 +249,16 @@ export async function POST(request: Request) {
             };
           }
         : undefined,
+      async (names) => {
+        signal.throwIfAborted();
+        const resolved = resolveContextTables(schema, names);
+        const added = addDiscoveredTables(context!, resolved.tables);
+        return {
+          matchedTables: resolved.tables.map((t) => t.name),
+          unavailableTables: resolved.unavailableTables,
+          tables: added,
+        };
+      },
     );
     return Response.json({
       ...answer,
@@ -252,6 +273,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         contextFunctions: selectedFunctions,
+        ...(context ? { contextTables: context.tables } : {}),
         error: /SQL syntax|Unknown column|doesn't exist/i.test(message)
           ? "La consulta generada no coincide con el esquema. Prueba a reformular tu pregunta o a añadir descripciones."
           : message,

@@ -94,3 +94,5 @@ npm run build
 ```
 
 A live MySQL database and a funded OpenRouter key are required to verify real model-generated results. OpenRouter integration follows its [chat completions API](https://openrouter.ai/docs/quickstart).
+
+The main model can also request exact table names with an `add_tables` action in both manual-group and DR.STRANGE chats, for example after seeing a table referenced in function code. Each action accepts one or more names and returns newly added schemas plus unavailable names, without a JEV sweep. Added tables persist across follow-ups, appear in the context sidebar, and become available to SQL and function discovery. NOT USED tables remain excluded. There are ten addition actions per question, independent of the other budgets; DR.STRANGE still requires its initial discovery.

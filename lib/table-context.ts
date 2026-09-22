@@ -14,3 +14,17 @@ export function applyExclusions(tables: Table[], excluded: unknown): Table[] {
 export function contextTables(tables: Table[]): Table[] {
   return tables.filter((table) => !table.notUsed);
 }
+
+/** Resolve exact names against the connected schema, respecting exclusions. */
+export function resolveContextTables(tables: Table[], names: string[]) {
+  const available = new Map(
+    contextTables(tables).map((table) => [table.name, table]),
+  );
+  const requested = [...new Set(names)];
+  return {
+    tables: requested.flatMap((name) =>
+      available.has(name) ? [available.get(name)!] : [],
+    ),
+    unavailableTables: requested.filter((name) => !available.has(name)),
+  };
+}

@@ -80,7 +80,7 @@ export async function discoverFunctions(
 }
 
 // Probability of yes, in [0, 1]. Tables must be strictly above this threshold.
-export const JEV_CONFIDENCE_THRESHOLD = 0.5;
+export const JEV_CONFIDENCE_THRESHOLD = 0.8;
 export const JEV_MODEL = "typesafe/jev-1.13";
 
 export type DiscoveryContext = { initialized: boolean; tables: string[] };
