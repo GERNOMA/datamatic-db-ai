@@ -321,6 +321,12 @@ export default function UsageImport({
             intactos.
           </p>
           <p className="transform-hint">
+            Para reducir el coste, el código breve se lee directamente y las
+            comprobaciones JEV se agrupan. Los borradores sin incidencias pueden
+            guardarse tras la revisión, sin otra llamada al modelo. Las
+            consultas y búsquedas adicionales se reservan para dudas relevantes.
+          </p>
+          <p className="transform-hint">
             Guarda el archivo con-codigo en «Archivo guardado en la web» para
             usar las funciones completas. Sin código vinculado se usa el esquema
             y las consultas. El esquema, el código seleccionado y los resultados

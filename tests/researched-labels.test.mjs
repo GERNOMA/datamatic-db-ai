@@ -105,11 +105,11 @@ test("scouts full linked code, queries, reviews the actual draft, and persists i
   ]);
   assert.equal(result.results[0].description, final.description);
   const jev = result.requests.filter((r) => r.url.endsWith("decisions"));
-  assert.equal(jev.length, 2);
-  assert.equal(jev[0].body.state.function.rawCode, fn.rawCode);
-  assert.match(jev[1].body.questions.q0.instructions, /contradict/);
-  assert.match(jev[1].body.questions.q0.instructions, /Registra asignaciones/);
-  assert.match(jev[1].body.questions.q1.instructions, /historial/);
+  assert.equal(jev.length, 1);
+  assert.equal(jev[0].body.state.functions[0].rawCode, fn.rawCode);
+  assert.match(jev[0].body.state.criteria[0], /contradict/);
+  assert.match(jev[0].body.state.criteria[0], /Registra asignaciones/);
+  assert.match(jev[0].body.state.criteria[1], /historial/);
   assert.deepEqual(result.sql[0].allowed, [table.name]);
   const evidence = result.results[0].evidence;
   assert.equal(evidence.functions[0].file, fn.file);
@@ -191,7 +191,7 @@ test("code cache is reused but changed code and question produce new decisions",
   });
   assert.equal(
     third.requests.filter((r) => r.url.endsWith("decisions")).length,
-    2,
+    1,
   );
 });
 
@@ -302,12 +302,10 @@ test("the writer can inspect an unselected linked function and make only one tar
     },
   });
   assert.equal(result.results[0].evidence.functions[0].id, "hidden");
-  assert.equal(bodies.filter((b) => b.questions).length, 3);
+  assert.equal(bodies.filter((b) => b.questions).length, 2);
   assert.ok(
     bodies.some((b) =>
-      b.questions?.q0.instructions.includes(
-        "Does it retain historical assignments?",
-      ),
+      b.state?.criteria[0].includes("Does it retain historical assignments?"),
     ),
   );
   assert.ok(
@@ -335,7 +333,7 @@ test("a schema change invalidates cached code decisions", async () => {
   });
   assert.equal(
     next.requests.filter((r) => r.url.endsWith("decisions")).length,
-    2,
+    1,
   );
 });
 
@@ -358,10 +356,8 @@ test("unclear field descriptions are reviewed, returned and persisted with their
   );
   assert.deepEqual(result.results[0].fields, [fieldLabel]);
   assert.deepEqual(result.results[0].evidence.fields, [fieldLabel]);
-  const review = result.requests.filter((r) => r.url.endsWith("decisions"))[1];
-  assert.ok(
-    review.body.questions.q0.instructions.includes(fieldLabel.description),
-  );
+  const review = result.requests.filter((r) => r.url.endsWith("decisions"))[0];
+  assert.ok(review.body.state.criteria[0].includes(fieldLabel.description));
   const saved = {
     ...fieldTable,
     fields: applyFieldLabels(fieldTable.fields, result.results[0].fields),
@@ -431,4 +427,144 @@ test("applying labels fills only blank known fields and preserves existing user 
   assert.equal(updated[2], fields[2]);
   assert.equal(updated.length, fields.length);
   assert.equal(fields[1].description, "  ");
+});
+
+test("small fully evidenced clean drafts save with one writer and one JEV request", async () => {
+  let writerCalls = 0,
+    jevCalls = 0;
+  const result = await run([], {
+    fetcher: async (url, init) => {
+      const body = JSON.parse(init.body);
+      if (url.endsWith("decisions")) {
+        jevCalls++;
+        return Response.json({
+          answers: Object.fromEntries(
+            Object.keys(body.questions).map((key) => [
+              key,
+              { type: "noul", noul: 0.05 },
+            ]),
+          ),
+        });
+      }
+      writerCalls++;
+      assert.ok(body.messages.some((m) => m.content.includes(fn.rawCode)));
+      return Response.json({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ ...draft, uncertainties: [] }),
+            },
+          },
+        ],
+      });
+    },
+  });
+  assert.equal(writerCalls, 1);
+  assert.equal(jevCalls, 1);
+  assert.equal(result.results[0].description, draft.description);
+});
+
+test("large archives batch independent per-function decisions without losing coverage", async () => {
+  const functions = Array.from({ length: 32 }, (_, i) => ({
+    ...fn,
+    id: `fn${i}`,
+    file: `Model${i}.php`,
+  }));
+  const result = await run([draft, final], { functions });
+  const jev = result.requests.filter((r) => r.url.endsWith("decisions"));
+  assert.equal(jev.length, 8); // formerly 64: 32 functions times two sweeps
+  assert.equal(result.requests.length, 10); // includes the two writer calls
+  for (const batch of jev) assert.equal(batch.body.state.functions.length, 8);
+  const initial = jev.filter((r) => r.body.state.criteria.length === 5);
+  assert.equal(
+    new Set(initial.flatMap((r) => r.body.state.functions.map((f) => f.id)))
+      .size,
+    32,
+  );
+  for (const batch of initial)
+    assert.equal(Object.keys(batch.body.questions).length, 40);
+  assert.equal(result.results[0].description, final.description);
+});
+
+test("uncertainty, ambiguous review scores and failed reviews require the second writer call", async () => {
+  for (const scenario of ["uncertainty", "ambiguous", "failure"]) {
+    let calls = 0;
+    const result = await run([], {
+      fetcher: async (url, init) => {
+        const body = JSON.parse(init.body);
+        if (url.endsWith("decisions")) {
+          if (scenario === "failure")
+            return new Response("failed", { status: 429 });
+          return Response.json({
+            answers: Object.fromEntries(
+              Object.keys(body.questions).map((key) => [
+                key,
+                { type: "noul", noul: scenario === "ambiguous" ? 0.4 : 0.05 },
+              ]),
+            ),
+          });
+        }
+        return Response.json({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(
+                  calls++
+                    ? final
+                    : {
+                        ...draft,
+                        uncertainties:
+                          scenario === "uncertainty"
+                            ? ["Unknown lifecycle"]
+                            : [],
+                      },
+                ),
+              },
+            },
+          ],
+        });
+      },
+    });
+    assert.equal(calls, 2, scenario);
+    assert.equal(result.results[0].description, final.description);
+  }
+});
+
+test("batch scores stay attached to their own functions", async () => {
+  const functions = Array.from({ length: 16 }, (_, i) => ({
+    ...fn,
+    id: `fn${i}`,
+    rawCode: `function method${i}() { return ${i}; }`,
+  }));
+  let calls = 0;
+  const result = await run([], {
+    functions,
+    fetcher: async (url, init) => {
+      const body = JSON.parse(init.body);
+      if (url.endsWith("decisions"))
+        return Response.json({
+          answers: Object.fromEntries(
+            Object.keys(body.questions).map((key) => {
+              const index = Number(key.match(/^f(\d+)_/)[1]);
+              return [
+                key,
+                {
+                  type: "noul",
+                  noul: body.state.functions[index].id === "fn13" ? 0.9 : 0,
+                },
+              ];
+            }),
+          ),
+        });
+      return Response.json({
+        choices: [
+          { message: { content: JSON.stringify(calls++ ? final : draft) } },
+        ],
+      });
+    },
+  });
+  assert.deepEqual(
+    result.results[0].evidence.functions.map((f) => f.id),
+    ["fn13"],
+  );
 });
