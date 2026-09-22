@@ -47,7 +47,7 @@ export async function discoverFunctions(
             Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
           },
-          signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
+          signal: AbortSignal.any([signal, AbortSignal.timeout(600000)]),
           body: JSON.stringify({
             model: JEV_MODEL,
             state: { function: fn },
@@ -110,7 +110,7 @@ export async function discoverTables(
               Authorization: `Bearer ${apiKey}`,
               "Content-Type": "application/json",
             },
-            signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
+            signal: AbortSignal.any([signal, AbortSignal.timeout(600000)]),
             body: JSON.stringify({
               model: JEV_MODEL,
               state: { table },

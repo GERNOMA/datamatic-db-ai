@@ -165,7 +165,7 @@ export async function POST(request: Request) {
     ];
     const signal = AbortSignal.any([
       request.signal,
-      AbortSignal.timeout(180000),
+      AbortSignal.timeout(1800000),
     ]);
     const answer = await runChat(
       messages,
@@ -178,11 +178,11 @@ export async function POST(request: Request) {
               Authorization: `Bearer ${session.apiKey}`,
               "Content-Type": "application/json",
             },
-            signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
+            signal: AbortSignal.any([signal, AbortSignal.timeout(600000)]),
             body: JSON.stringify({
               model: session.model,
               temperature: 0,
-              max_tokens: freeVisualization ? 12000 : 3000,
+              max_tokens: freeVisualization ? 120000 : 30000,
               messages,
             }),
           },

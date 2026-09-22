@@ -118,7 +118,7 @@ export async function labelTables(
               Authorization: `Bearer ${apiKey}`,
               "Content-Type": "application/json",
             },
-            signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]),
+            signal: AbortSignal.any([signal, AbortSignal.timeout(900000)]),
             body: JSON.stringify({
               model,
               temperature: 0,
