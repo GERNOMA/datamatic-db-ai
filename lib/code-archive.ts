@@ -45,8 +45,8 @@ export async function decodeCodeArchive(data: Uint8Array, name: string) {
     if (!/(^|\/)con-codigo\/[^/]+\.json$/i.test(name.replace(/\\/g, "/")))
       return false;
     total += size;
-    if (++count > 20000 || total > MAX_ARCHIVE_BYTES)
-      throw new Error("El archivo supera 20.000 JSON o 100 MB descomprimidos.");
+    //if (++count > 20000 || total > MAX_ARCHIVE_BYTES)
+    //  throw new Error("El archivo supera 20.000 JSON o 100 MB descomprimidos.");
     return true;
   };
   let entries: Record<string, Uint8Array>;
