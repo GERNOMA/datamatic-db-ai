@@ -14,6 +14,7 @@ export type TableUpdate = {
   notUsed?: boolean;
   description?: string;
   labelEvidence?: Table["labelEvidence"];
+  fields?: import("@/lib/types").FieldLabel[];
 };
 export type ModelWorkspaceProps = {
   tables: Table[];
@@ -160,6 +161,7 @@ export default function UsageImport({
                 name: item.table,
                 description: item.description,
                 labelEvidence: item.evidence,
+                fields: item.fields,
               },
             ]);
         }
@@ -312,7 +314,11 @@ export default function UsageImport({
             vinculadas a cada tabla y revisa el borrador para detectar
             contradicciones y omisiones. El modelo puede inspeccionar funciones
             y ejecutar hasta 3 SELECT de solo lectura por tabla antes de guardar
-            una descripción de hasta 240 caracteres.
+            una descripción de hasta 240 caracteres. Si un nombre de campo es
+            ambiguo, también propone una descripción breve basada en evidencias
+            y revisada por JEV. Se conservan las descripciones de campos
+            existentes; los nombres claros o sin evidencia suficiente se dejan
+            intactos.
           </p>
           <p className="transform-hint">
             Guarda el archivo con-codigo en «Archivo guardado en la web» para

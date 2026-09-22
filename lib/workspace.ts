@@ -1,4 +1,5 @@
 import type { Group, Table } from "./types";
+import { validFieldLabels } from "./field-labels.ts";
 
 export const WORKSPACE_KEY = "datamatic:workspace";
 export type SavedConnection = {
@@ -39,6 +40,8 @@ function unique(values: string[]) {
 }
 function validLabelEvidence(value: unknown) {
   if (!record(value)) return false;
+  if (value.fields !== undefined && !validFieldLabels(value.fields))
+    return false;
   return (
     [value.generatedAt, value.model, value.description].every(
       (v) => typeof v === "string",

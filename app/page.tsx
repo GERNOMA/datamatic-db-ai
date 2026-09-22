@@ -15,6 +15,7 @@ import TransformPage from "./transform-page";
 import ModelsPage from "./modelos/models-page";
 import type { TableUpdate } from "./modelos/usage-import";
 import LabelEvidenceDetails from "./label-evidence";
+import { applyFieldLabels } from "@/lib/field-labels";
 import { applyCatalog } from "@/lib/catalog";
 import type { ChatAnswer, Field, Group, Table } from "@/lib/types";
 import type { SelectedFunction } from "@/lib/code-context";
@@ -485,6 +486,9 @@ export default function Home() {
             ? {
                 description: change.description,
                 labelEvidence: change.labelEvidence,
+                ...(change.fields
+                  ? { fields: applyFieldLabels(table.fields, change.fields) }
+                  : {}),
               }
             : {}),
         };

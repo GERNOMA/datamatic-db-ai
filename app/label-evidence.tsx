@@ -30,6 +30,34 @@ export default function LabelEvidenceDetails({
           </li>
         ))}
       </ul>
+      {!!evidence.fields?.length && (
+        <details>
+          <summary>
+            Descripciones de campos propuestas ({evidence.fields.length})
+          </summary>
+          <p>Solo se rellenan los campos sin descripción previa.</p>
+          <ul>
+            {evidence.fields.map((field) => (
+              <li key={field.name}>
+                <strong>{field.name}</strong>: {field.description}
+                <p>{field.reason}</p>
+                <ul>
+                  {field.sources.map((source) => {
+                    const fn = evidence.functions.find((f) => f.id === source);
+                    return (
+                      <li key={source}>
+                        <code>
+                          {fn ? `${fn.file}:${fn.line} · ${fn.name}` : source}
+                        </code>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <details>
         <summary>
           Funciones inspeccionadas ({evidence.functions.length})

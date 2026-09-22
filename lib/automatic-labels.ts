@@ -9,6 +9,7 @@ export type LabelResult = {
   evidence?: import("./types").LabelEvidence;
   stage?: string;
   description?: string;
+  fields?: import("./types").FieldLabel[];
   error?: string;
   modelResponse?: string;
 };

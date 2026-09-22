@@ -13,11 +13,19 @@ export type Table = {
   fields: Field[];
 };
 
+export type FieldLabel = {
+  name: string;
+  description: string;
+  reason: string;
+  sources: string[];
+};
+
 export type LabelEvidence = {
   generatedAt: string;
   model: string;
   description: string;
   claims: { text: string; sources: string[] }[];
+  fields?: FieldLabel[];
   functions: {
     id: string;
     name: string;

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { researchLabels } from "../lib/researched-labels.ts";
 import { validTables } from "../lib/workspace.ts";
+import { applyFieldLabels } from "../lib/field-labels.ts";
 
 const table = {
   name: "assignments",
@@ -24,6 +25,19 @@ const draft = {
   uncertainties: ["¿Conserva el historial?"],
 };
 const final = { ...draft, action: "final", uncertainties: [] };
+const fieldLabel = {
+  name: "st",
+  description: "Estado de la asignación: 1 indica activa y 0 cerrada.",
+  reason: "La abreviatura no explica el significado ni los códigos.",
+  sources: ["fn1"],
+};
+const fieldTable = {
+  ...table,
+  fields: [
+    ...table.fields,
+    { name: "st", type: "int", key: "", nullable: false },
+  ],
+};
 let sequence = 0;
 async function run(actions, overrides = {}) {
   const results = [],
@@ -323,4 +337,98 @@ test("a schema change invalidates cached code decisions", async () => {
     next.requests.filter((r) => r.url.endsWith("decisions")).length,
     2,
   );
+});
+
+test("unclear field descriptions are reviewed, returned and persisted with their sources", async () => {
+  const result = await run(
+    [
+      { ...draft, fields: [fieldLabel] },
+      { ...final, fields: [fieldLabel] },
+    ],
+    {
+      tables: [fieldTable],
+      functions: [
+        {
+          ...fn,
+          rawCode:
+            "public function close() { $this->st = 0; } public function activate() { $this->st = 1; }",
+        },
+      ],
+    },
+  );
+  assert.deepEqual(result.results[0].fields, [fieldLabel]);
+  assert.deepEqual(result.results[0].evidence.fields, [fieldLabel]);
+  const review = result.requests.filter((r) => r.url.endsWith("decisions"))[1];
+  assert.ok(
+    review.body.questions.q0.instructions.includes(fieldLabel.description),
+  );
+  const saved = {
+    ...fieldTable,
+    fields: applyFieldLabels(fieldTable.fields, result.results[0].fields),
+    labelEvidence: result.results[0].evidence,
+  };
+  const restored = JSON.parse(JSON.stringify([saved]));
+  assert.equal(validTables(restored), true);
+  assert.equal(restored[0].fields[1].description, fieldLabel.description);
+  assert.equal(restored[0].fields[0].description, undefined);
+  assert.equal(
+    validTables([
+      {
+        ...saved,
+        labelEvidence: {
+          ...saved.labelEvidence,
+          fields: [{ ...fieldLabel, sources: [null] }],
+        },
+      },
+    ]),
+    false,
+  );
+});
+
+test("invalid fields cannot be saved and the model can correct its proposal", async () => {
+  for (const fields of [
+    [{ ...fieldLabel, name: "foreign_column" }],
+    [fieldLabel, fieldLabel],
+    [{ ...fieldLabel, sources: ["invented"] }],
+    [{ ...fieldLabel, description: "x".repeat(241) }],
+    [{ ...fieldLabel, reason: "" }],
+  ]) {
+    const result = await run([{ ...draft, fields }, draft, final], {
+      tables: [fieldTable],
+    });
+    assert.deepEqual(result.results[0].fields, []);
+    assert.equal(
+      result.requests.filter((r) => !r.url.endsWith("decisions")).length,
+      3,
+    );
+  }
+});
+
+test("fields cannot be added after the draft review", async () => {
+  const result = await run([draft, { ...final, fields: [fieldLabel] }, final], {
+    tables: [fieldTable],
+  });
+  assert.deepEqual(result.results[0].fields, []);
+  assert.equal(
+    result.requests.filter((r) => !r.url.endsWith("decisions")).length,
+    3,
+  );
+});
+
+test("applying labels fills only blank known fields and preserves existing user descriptions", () => {
+  const fields = [
+    { ...fieldTable.fields[0], description: "Identificador manual" },
+    { ...fieldTable.fields[1], description: "  " },
+    { ...fieldTable.fields[1], name: "untouched" },
+  ];
+  const updated = applyFieldLabels(fields, [
+    fieldLabel,
+    { ...fieldLabel, name: "id" },
+    { ...fieldLabel, name: "unknown" },
+  ]);
+  assert.equal(updated[0].description, "Identificador manual");
+  assert.equal(updated[1].description, fieldLabel.description);
+  assert.equal(updated[2], fields[2]);
+  assert.equal(updated.length, fields.length);
+  assert.equal(fields[1].description, "  ");
 });
