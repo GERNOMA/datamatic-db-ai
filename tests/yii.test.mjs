@@ -105,6 +105,30 @@ test("reports broken files and dynamic tables without aborting valid models", ()
   assert.equal(result.models.find((m) => m.model === "Dynamic").module, null);
   assert.ok(result.warnings.some((w) => w.includes("broken.php")));
   assert.ok(result.warnings.some((w) => w.includes("dinámico")));
+  assert.ok(
+    result.warnings.some(
+      (w) => w.includes("dynamic.php") && w.includes("getenv('TABLE')"),
+    ),
+  );
+});
+test("runtime exception parents need no source but missing namespaced parents do", () => {
+  const result = analyzeYii([
+    {
+      path: "exceptions.php",
+      code: String.raw`<?php namespace app;
+use RuntimeException as RuntimeFailure;
+class CalculationException extends RuntimeFailure {}
+class InvalidCalculation extends \InvalidArgumentException {}
+class LowerCaseFailure extends \runtimeexception {}
+class MissingFailure extends RuntimeException {}
+class CustomFailure extends \vendor\RuntimeException {}`,
+    },
+  ]);
+  assert.equal(result.warnings.length, 2);
+  assert.ok(result.warnings.some((w) => w.includes("app\\RuntimeException")));
+  assert.ok(
+    result.warnings.some((w) => w.includes("vendor\\RuntimeException")),
+  );
 });
 test("same short class names in different namespaces do not collide", () => {
   const result = analyzeYii([

@@ -42,6 +42,35 @@ type Fn = {
   key: string;
 };
 const lower = (s: string) => s.toLowerCase();
+// Global PHP exception/error classes are supplied by the runtime, not the archive.
+const runtimeParents = new Set(
+  [
+    "Exception",
+    "Error",
+    "ErrorException",
+    "LogicException",
+    "BadFunctionCallException",
+    "BadMethodCallException",
+    "DomainException",
+    "InvalidArgumentException",
+    "LengthException",
+    "OutOfRangeException",
+    "RuntimeException",
+    "OutOfBoundsException",
+    "OverflowException",
+    "RangeException",
+    "UnderflowException",
+    "UnexpectedValueException",
+    "ArithmeticError",
+    "DivisionByZeroError",
+    "AssertionError",
+    "ParseError",
+    "TypeError",
+    "ArgumentCountError",
+    "ValueError",
+    "UnhandledMatchError",
+  ].map(lower),
+);
 const nameOf = (n: Node | string | undefined): string =>
   typeof n === "string" ? n : n?.name || "";
 function walk(value: unknown, visit: (node: Node) => void) {
@@ -288,7 +317,9 @@ export function analyzeYii(
   const reports = models.map((model): ModelReport => {
     const resolved = table(model);
     if (!resolved.module)
-      warnings.push(`${model.name}: tableName() dinámico; tabla sin resolver.`);
+      warnings.push(
+        `${model.name}: tableName() dinámico; tabla sin resolver. Archivo: ${model.context.source.path}.${resolved.tableExpression ? ` Expresión: ${resolved.tableExpression}` : ""}`,
+      );
     return {
       model: model.name,
       file: model.context.source.path,
@@ -321,7 +352,8 @@ export function analyzeYii(
     if (
       c.parent &&
       !byName.has(lower(c.parent)) &&
-      !c.parent.startsWith("yii\\")
+      !lower(c.parent).startsWith("yii\\") &&
+      !runtimeParents.has(lower(c.parent))
     )
       warnings.push(
         `${c.name}: clase padre no incluida (${c.parent}); la detección puede estar incompleta.`,
