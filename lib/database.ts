@@ -8,6 +8,8 @@ import type { SelectedFunction } from "./code-context";
 type Session = {
   url: string;
   apiKey: string;
+  useCerebras?: boolean;
+  cerebrasApiKey?: string;
   model: string;
   name: string;
   id: string;

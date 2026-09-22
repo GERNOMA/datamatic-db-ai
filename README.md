@@ -11,11 +11,35 @@ npm run dev
 
 Open http://localhost:3000. In **Connect**, enter a MySQL URL, an OpenRouter API key, and a model ID (defaults to `openrouter/auto`). Use a database account granted only SELECT on the database you want to explore. MySQL 8 is recommended. For verified TLS, append `?ssl=true` to the URL. URL-encode special characters in usernames and passwords.
 
+To run the main chat model on Cerebras, check **Usar Cerebras para el modelo principal**, enter your Cerebras API key, and choose a Cerebras model ID (defaults to `gpt-oss-120b`). Reconnect to apply changes. The server also accepts `CEREBRAS_API_KEY` and `CEREBRAS_MODEL` defaults. JEV discovery, DR.STRANGE, and automatic labeling still require the OpenRouter key. The provider choice and explicitly entered Cerebras key are saved with the connection and included in workspace JSON exports; server-provided keys are never exported. Requests use the [Cerebras Chat Completions API](https://inference-docs.cerebras.ai/api-reference/chat-completions).
+
 Alternatively, set `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` in `.env.local` before starting the app. The form's nonempty values take precedence.
 
 1. **Database:** select a table and describe it and its fields. Create groups such as Workers containing workers, company, and workers_route. Edit or delete groups by clicking their names.
 2. **Chat:** select one or more groups and ask a question. The model receives a JSON schema containing only selected table names, field names/types, and descriptions when present, alongside your questions and prior answers and SQL. Changing groups starts a fresh conversation.
-3. The AI can run up to five SELECT queries, receiving the rows or error after each step before deciding whether to query again. The server validates every query and runs it in a read-only transaction. Query results are sent to OpenRouter and the selected model. The final answer uses a small declarative view description rendered by React as tables, metrics, or optionally animated bar charts. By default, generated JavaScript is never executed. Enable **Free visualization** beside Send to let the AI write its own HTML, CSS, and JavaScript mini webpage. It runs inside a [sandboxed iframe](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe#sandbox) with scripts enabled but without same-origin access, top-level navigation, popups, or form submission. Its content policy blocks external scripts, resource loads, and fetch requests. Actual query steps are injected as `window.queryResults`. The preview can be resized vertically; its source is available under **View visualization code**. SQL steps remain available in a collapsed detail panel.
+3. The AI can run up to ten SELECT queries and five JavaScript calculations per question, receiving rows or errors after each step. The server validates every query and runs it in a read-only transaction. Query and calculation results are sent to OpenRouter and the selected model. The final answer uses a small declarative view description rendered by React as tables, metrics, or optionally animated bar charts. Enable **Free visualization** beside Send to let the AI also write its own HTML, CSS, and JavaScript mini webpage. It runs inside a [sandboxed iframe](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe#sandbox) with scripts enabled but without same-origin access, top-level navigation, popups, or form submission. Its content policy blocks external scripts, resource loads, and fetch requests. Actual SQL and calculation steps are injected as `window.queryResults`. The preview grows to fit its content; its source is available under **View visualization code**. SQL and calculation source remain available in a collapsed detail panel.
+
+## JavaScript calculations
+
+The model can send a `calculate` action with a JavaScript function body. This works in both chat modes, with or without free visualization. For example:
+
+```js
+const result = sql("SELECT amount FROM orders");
+const amounts = result.rows.map((row) => Number(row.amount));
+amounts.sort((a, b) => a - b);
+const middle = Math.floor(amounts.length / 2);
+const median =
+  amounts.length === 0
+    ? null
+    : amounts.length % 2
+      ? amounts[middle]
+      : (amounts[middle - 1] + amounts[middle]) / 2;
+return [{ median, sampledRows: amounts.length }];
+```
+
+`sql(statement)` waits for a query and returns `{sql, rows, duration, truncated}` or throws its error. Use synchronous JavaScript; `await` is not needed. Calls share the ten-query budget with direct SQL and go through the same current-table restrictions and read-only executor. `queryResults` provides a copy of earlier SQL and calculation steps, so the model can compute without fetching the same data again. Return an array of JSON row objects; the calculation receives a step index usable by all existing views. SQL calls made before a calculation fails are still recorded and counted. Truncated inputs mark the calculation as incomplete.
+
+Code runs in a fresh [QuickJS WebAssembly interpreter](https://github.com/justjake/quickjs-emscripten), with a 32 MB JavaScript heap, a 2-second computation deadline excluding SQL waits, and a 30-second overall deadline passed to SQL. Each attempt allows 16,000 code characters and 500 output rows; outputs over 100 KB are rejected. There are five calculation attempts per question, including failures. Standard JavaScript calculations are supported; Node.js/Next.js imports, JSX, filesystem access, credentials, network access, and timers are unavailable inside the interpreter.
 
 The browser saves one versioned JSON workspace (`datamatic:workspace`) containing all connection profiles (MySQL URLs and explicitly entered API keys included), models, schemas, table/field descriptions, groups, selected groups, and the free-visualization preference. Existing per-database description/group saves migrate automatically. Old saves have no credentials; reconnect once to complete their profiles. Server-provided API keys are never copied into the workspace.
 
@@ -81,7 +105,7 @@ The context sidebar shows selected functions, file/line, owning class, models, s
 
 ## Query limits and deployment
 
-Only single SELECT statements are accepted. Cross-database references, unselected tables, comments, variables, file access, locks, and unknown functions are rejected. Basic joins, subqueries, and aggregate functions are supported; advanced SQL that the parser cannot validate is rejected. Queries get a ten-second MySQL execution limit; results stop at 500 rows or 100 KB per step. Each question allows five queries, up to eight model calls (including format corrections), and a three-minute overall deadline checked between steps and during model requests. A query already running may take its remaining ten-second SQL limit. Truncated data is marked in the answer. The model can answer without querying when no database lookup is needed. The database account's SELECT-only grants remain the final permission boundary.
+Only single SELECT statements are accepted. Cross-database references, unselected tables, comments, variables, file access, locks, and unknown functions are rejected. Basic joins, subqueries, and aggregate functions are supported; advanced SQL that the parser cannot validate is rejected. Queries get a ten-second MySQL execution limit; results stop at 500 rows or 100 KB per step. Each question allows ten SQL queries and five calculation attempts, plus separate table/function discovery budgets and bounded format-correction turns. The chat route has a thirty-minute overall deadline; calculations have their own shorter limits and cancellation is passed to SQL. Truncated data is marked in the answer. The model can answer without querying when no database lookup is needed. The database account's SELECT-only grants remain the final permission boundary.
 
 This is a local or trusted, single-server application. It deliberately has no account system or distributed session store. Do not expose it as a public service without adding access control and restrictions on database destinations. For production on one server: `npm run build` then `npm start`.
 

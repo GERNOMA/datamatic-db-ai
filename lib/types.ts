@@ -45,6 +45,8 @@ export type LabelEvidence = {
 export type Group = { id: string; name: string; tables: string[] };
 
 export type QueryStep = {
+  kind?: "calculation";
+  code?: string;
   sql: string;
   rows: Record<string, unknown>[];
   duration: number;

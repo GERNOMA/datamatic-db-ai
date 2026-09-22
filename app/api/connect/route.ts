@@ -19,6 +19,7 @@ export async function GET() {
       id: session.id,
       tables: session.tables,
       model: session.model,
+      useCerebras: session.useCerebras === true,
       aiReady: !!session.apiKey,
     });
   } catch {
@@ -61,10 +62,17 @@ export async function POST(request: Request) {
       typeof body.apiKey === "string"
         ? body.apiKey.trim() || process.env.OPENROUTER_API_KEY || ""
         : process.env.OPENROUTER_API_KEY || "";
+    const useCerebras = body.useCerebras === true;
+    const cerebrasApiKey =
+      (typeof body.cerebrasApiKey === "string" && body.cerebrasApiKey.trim()) ||
+      process.env.CEREBRAS_API_KEY ||
+      "";
     const model =
       typeof body.model === "string" && body.model.trim()
         ? body.model.trim()
-        : process.env.OPENROUTER_MODEL || "openrouter/auto";
+        : useCerebras
+          ? process.env.CEREBRAS_MODEL || "gpt-oss-120b"
+          : process.env.OPENROUTER_MODEL || "openrouter/auto";
     const token = randomUUID();
     const cookieStore = await cookies();
     const old = cookieStore.get("datamatic-session")?.value;
@@ -77,6 +85,8 @@ export async function POST(request: Request) {
       id,
       tables,
       apiKey,
+      useCerebras,
+      cerebrasApiKey,
       model,
       expires: Date.now() + 8 * 60 * 60 * 1000,
     });
@@ -87,7 +97,14 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: 8 * 60 * 60,
     });
-    return Response.json({ name, id, tables, model, aiReady: !!apiKey });
+    return Response.json({
+      name,
+      id,
+      tables,
+      model,
+      useCerebras,
+      aiReady: !!apiKey,
+    });
   } catch {
     return Response.json(
       {

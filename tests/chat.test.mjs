@@ -14,6 +14,39 @@ const answer = {
   views: [{ type: "metric", title: "Orders", query: 1, column: "total" }],
 };
 
+test("required discovery keeps every system message before conversation history", async () => {
+  const messages = [
+    { role: "system", content: "instructions" },
+    { role: "user", content: "earlier question" },
+    { role: "assistant", content: "earlier answer" },
+    { role: "user", content: "current question" },
+  ];
+  let calls = 0;
+  await runChat(
+    messages,
+    async (input) => {
+      const firstConversationMessage = input.findIndex(
+        (message) => message.role !== "system",
+      );
+      assert.ok(firstConversationMessage > 0);
+      assert.ok(
+        input
+          .slice(firstConversationMessage)
+          .every((message) => message.role !== "system"),
+      );
+      return JSON.stringify(
+        ++calls === 1
+          ? { type: "discover", purpose: "find relevant tables" }
+          : { type: "answer", text: "Done", views: [] },
+      );
+    },
+    async () => assert.fail("No SQL expected"),
+    false,
+    { required: true, discover: async () => ({ tables: [] }) },
+  );
+  assert.equal(calls, 2);
+});
+
 test("the next model call sees the previous result and can query again", async () => {
   let calls = 0;
   const result = await runChat(

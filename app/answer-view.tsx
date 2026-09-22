@@ -133,18 +133,17 @@ export default function AnswerView({ answer }: { answer: ChatAnswer }) {
         <details className="sql">
           <summary>
             Ver {answer.steps.length}{" "}
-            {answer.steps.length === 1
-              ? "paso de consulta"
-              : "pasos de consulta"}
-            <span>SELECT · solo lectura</span>
+            {answer.steps.length === 1 ? "paso" : "pasos"}
+            <span>SQL · cálculos · solo lectura</span>
           </summary>
           {answer.steps.map((step, index) => (
             <div className="query-step" key={index}>
               <small>
                 Paso {index + 1} · {step.rows.length} filas · {step.duration} ms
+                {step.kind === "calculation" ? " · JavaScript" : " · SQL"}
                 {step.truncated ? " · limitado" : ""}
               </small>
-              <pre>{step.sql}</pre>
+              <pre>{step.kind === "calculation" ? step.code : step.sql}</pre>
               {step.error && <p className="query-error">{step.error}</p>}
             </div>
           ))}

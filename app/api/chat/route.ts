@@ -1,4 +1,9 @@
 import { checkOrigin, getSession } from "@/lib/database";
+import {
+  mainModelProvider,
+  mainModelRequest,
+  mainModelError,
+} from "@/lib/main-model";
 import { executeQuery } from "@/lib/query";
 import { chatPrompt, runChat, type Message } from "@/lib/chat";
 import {
@@ -28,8 +33,9 @@ export async function POST(request: Request) {
     checkOrigin(request);
     const session = await getSession();
     const body = await request.json();
-    if (!session.apiKey)
-      throw new Error("Añade tu clave API de OpenRouter en Conectar.");
+    const provider = mainModelProvider(session);
+    if (!provider.apiKey)
+      throw new Error(`Añade tu clave API de ${provider.name} en Conectar.`);
     if (
       typeof body.question !== "string" ||
       !body.question.trim() ||
@@ -37,6 +43,8 @@ export async function POST(request: Request) {
     )
       throw new Error("Introduce una pregunta de hasta 8000 caracteres.");
     const drStrange = body.drStrange === true;
+    if (drStrange && !session.apiKey)
+      throw new Error("Añade tu clave API de OpenRouter para usar DR.STRANGE.");
     const before = session.tables
       .filter((t) => t.notUsed)
       .map((t) => t.name)
@@ -170,27 +178,18 @@ export async function POST(request: Request) {
     const answer = await runChat(
       messages,
       async (messages) => {
-        const response = await fetch(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${session.apiKey}`,
-              "Content-Type": "application/json",
-            },
-            signal: AbortSignal.any([signal, AbortSignal.timeout(600000)]),
-            body: JSON.stringify({
-              model: session.model,
-              temperature: 0,
-              max_tokens: freeVisualization ? 120000 : 30000,
-              messages,
-            }),
+        const response = await fetch(provider.url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${provider.apiKey}`,
+            "Content-Type": "application/json",
           },
-        );
-        if (!response.ok)
-          throw new Error(
-            `La solicitud a OpenRouter ha fallado (${response.status}). Revisa tu clave API, los créditos y el modelo en Conectar.`,
-          );
+          signal: AbortSignal.any([signal, AbortSignal.timeout(600000)]),
+          body: JSON.stringify(
+            mainModelRequest(session, messages, freeVisualization),
+          ),
+        });
+        if (!response.ok) throw await mainModelError(response, provider);
         const completion = await response.json();
         const content = completion.choices?.[0]?.message?.content;
         if (typeof content !== "string")
@@ -199,12 +198,15 @@ export async function POST(request: Request) {
           );
         return content;
       },
-      async (sql) => {
+      async (sql, calculationSignal) => {
         signal.throwIfAborted();
         return executeQuery(
           sql,
           visibleSchema().map((t) => t.name),
           session.url,
+          calculationSignal
+            ? AbortSignal.any([signal, calculationSignal])
+            : signal,
         );
       },
       freeVisualization,
@@ -229,6 +231,10 @@ export async function POST(request: Request) {
         : undefined,
       archive
         ? async (purpose) => {
+            if (!session.apiKey)
+              throw new Error(
+                "Añade tu clave API de OpenRouter para descubrir funciones con JEV.",
+              );
             const candidates = functionsForTables(
               archive.functions,
               visibleSchema().map((t) => t.name),
@@ -259,6 +265,7 @@ export async function POST(request: Request) {
           tables: added,
         };
       },
+      signal,
     );
     return Response.json({
       ...answer,

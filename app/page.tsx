@@ -26,6 +26,7 @@ type Connection = {
   tables: Table[];
   model: string;
   aiReady: boolean;
+  useCerebras?: boolean;
 };
 type Result = { question: string; answer?: ChatAnswer; error?: string };
 type Tab = "Chat" | "Database" | "Connect" | "Transformar" | "Modelos";
@@ -92,6 +93,8 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [url, setUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [useCerebras, setUseCerebras] = useState(false);
+  const [cerebrasApiKey, setCerebrasApiKey] = useState("");
   const [model, setModel] = useState("openrouter/auto");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -144,7 +147,10 @@ export default function Home() {
     : matchingTables.slice(0, 10);
 
   const loadConnection = useCallback(
-    (data: Connection, credentials?: { url: string; apiKey: string }) => {
+    (
+      data: Connection,
+      credentials?: { url: string; apiKey: string; cerebrasApiKey: string },
+    ) => {
       const saved = workspace.current.connections.find((c) => c.id === data.id);
       const merged = data.tables.map((t) => {
         const previous = saved?.tables?.find((old) => old.name === t.name);
@@ -176,6 +182,9 @@ export default function Home() {
             model: data.model,
             url: credentials?.url ?? saved?.url ?? "",
             apiKey: credentials?.apiKey ?? saved?.apiKey ?? "",
+            useCerebras: data.useCerebras === true,
+            cerebrasApiKey:
+              credentials?.cerebrasApiKey ?? saved?.cerebrasApiKey ?? "",
             tables: merged,
             groups: restored,
             selectedGroups: saved?.selectedGroups ?? [],
@@ -190,6 +199,7 @@ export default function Home() {
       setSelectedGroups(saved?.selectedGroups ?? []);
       setSelectedTable(merged[0]?.name || "");
       setModel(data.model);
+      setUseCerebras(data.useCerebras === true);
       resetConversation();
     },
     [resetConversation],
@@ -210,6 +220,8 @@ export default function Home() {
         );
         setUrl(saved?.url ?? "");
         setApiKey(saved?.apiKey ?? "");
+        setUseCerebras(saved?.useCerebras ?? false);
+        setCerebrasApiKey(saved?.cerebrasApiKey ?? "");
         setModel(saved?.model ?? "openrouter/auto");
         const response = await fetch("/api/connect");
         const data = await response.json();
@@ -316,6 +328,8 @@ export default function Home() {
         ) ?? imported.connections[0];
       setUrl(saved?.url ?? "");
       setApiKey(saved?.apiKey ?? "");
+      setUseCerebras(saved?.useCerebras ?? false);
+      setCerebrasApiKey(saved?.cerebrasApiKey ?? "");
       setModel(saved?.model ?? "openrouter/auto");
       setSaveError("");
       setTransferMessage(
@@ -342,13 +356,20 @@ export default function Home() {
       const response = await fetch("/api/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, apiKey, model }),
+        body: JSON.stringify({
+          url,
+          apiKey,
+          model,
+          useCerebras,
+          cerebrasApiKey,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
-      loadConnection(data, { url, apiKey });
+      loadConnection(data, { url, apiKey, cerebrasApiKey });
       setUrl("");
       setApiKey("");
+      setCerebrasApiKey("");
       setTab("Database");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo conectar.");
@@ -418,7 +439,16 @@ export default function Home() {
             role: "assistant",
             content: JSON.stringify({
               text: r.answer!.text,
-              queries: r.answer!.steps.map((step) => step.sql),
+              queries: r
+                .answer!.steps.filter((step) => step.kind !== "calculation")
+                .map((step) => step.sql),
+              calculations: r
+                .answer!.steps.filter((step) => step.kind === "calculation")
+                .map((step) => ({
+                  code: step.code,
+                  error: step.error,
+                  truncated: step.truncated,
+                })),
             }),
           },
         ]);
@@ -753,7 +783,10 @@ export default function Home() {
                     Consultas de solo lectura. Los resultados se comparten con
                     la IA.
                   </span>
-                  <span>Con tecnología de OpenRouter</span>
+                  <span>
+                    Con tecnología de{" "}
+                    {connection?.useCerebras ? "Cerebras" : "OpenRouter"}
+                  </span>
                 </div>
               </div>
             </section>
@@ -1130,7 +1163,8 @@ export default function Home() {
               <div className="form-divider" />
               <h3>Configura tu IA</h3>
               <p className="muted">
-                Conecta un modelo de OpenRouter para traducir preguntas a SQL.
+                Conecta un modelo de OpenRouter o Cerebras para traducir
+                preguntas a SQL.
               </p>
               <label className="form-label" htmlFor="api-key">
                 Clave API de OpenRouter{" "}
@@ -1144,6 +1178,39 @@ export default function Home() {
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="sk-or-v1-…"
               />
+              <label className="form-label" htmlFor="use-cerebras">
+                <input
+                  id="use-cerebras"
+                  type="checkbox"
+                  checked={useCerebras}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setUseCerebras(checked);
+                    setModel(checked ? "gpt-oss-120b" : "openrouter/auto");
+                  }}
+                />
+                Usar Cerebras para el modelo principal
+              </label>
+              {useCerebras && (
+                <>
+                  <label className="form-label" htmlFor="cerebras-api-key">
+                    Clave API de Cerebras{" "}
+                    <span>Opcional si está configurada en el servidor</span>
+                  </label>
+                  <input
+                    id="cerebras-api-key"
+                    type="password"
+                    autoComplete="off"
+                    value={cerebrasApiKey}
+                    onChange={(event) => setCerebrasApiKey(event.target.value)}
+                    placeholder="Introduce tu clave de Cerebras"
+                  />
+                  <p className="field-help">
+                    JEV, DR.STRANGE y el etiquetado automático siguen usando la
+                    clave de OpenRouter.
+                  </p>
+                </>
+              )}
               <label className="form-label" htmlFor="model">
                 Modelo
               </label>
@@ -1152,11 +1219,11 @@ export default function Home() {
                 required
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                placeholder="openrouter/auto"
+                placeholder={useCerebras ? "gpt-oss-120b" : "openrouter/auto"}
               />
               <p className="field-help">
                 Introduce el ID de un modelo disponible en tu cuenta de
-                OpenRouter.
+                {useCerebras ? "Cerebras" : "OpenRouter"}.
               </p>
               <button
                 className="button primary connect-button"
@@ -1184,6 +1251,8 @@ export default function Home() {
                       if (saved) {
                         setUrl(saved.url);
                         setApiKey(saved.apiKey);
+                        setUseCerebras(saved.useCerebras ?? false);
+                        setCerebrasApiKey(saved.cerebrasApiKey ?? "");
                         setModel(saved.model);
                       }
                     }}

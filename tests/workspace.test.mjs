@@ -37,6 +37,20 @@ const sample = () => ({
   connections: [structuredClone(profile)],
   freeVisualization: true,
 });
+test("Cerebras settings survive workspace export and import", () => {
+  const workspace = sample();
+  Object.assign(workspace.connections[0], {
+    useCerebras: true,
+    cerebrasApiKey: "cerebras-key",
+    model: "gpt-oss-120b",
+  });
+  assert.deepEqual(parseWorkspace(JSON.stringify(workspace)), workspace);
+  workspace.connections[0].useCerebras = "yes";
+  assert.throws(() => parseWorkspace(JSON.stringify(workspace)));
+  workspace.connections[0].useCerebras = true;
+  workspace.connections[0].cerebrasApiKey = 123;
+  assert.throws(() => parseWorkspace(JSON.stringify(workspace)));
+});
 function storage(entries) {
   const map = new Map(entries);
   return {

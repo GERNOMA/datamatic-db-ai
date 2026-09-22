@@ -17,6 +17,7 @@
     "node-sql-parser": "^5.4.0",
     "node-unrar-js": "^2.0.2",
     "php-parser": "^3.7.0",
+    "quickjs-emscripten": "^0.32.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

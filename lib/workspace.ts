@@ -7,6 +7,8 @@ export type SavedConnection = {
   name: string;
   url: string;
   apiKey: string;
+  useCerebras?: boolean;
+  cerebrasApiKey?: string;
   model: string;
   tables: Table[];
   groups: Group[];
@@ -142,6 +144,8 @@ export function parseWorkspace(json: string): Workspace {
         (s) => typeof s === "string",
       ) ||
       !validTables(c.tables) ||
+      (c.useCerebras !== undefined && typeof c.useCerebras !== "boolean") ||
+      (c.cerebrasApiKey !== undefined && typeof c.cerebrasApiKey !== "string") ||
       !validGroups(c.groups) ||
       !strings(c.selectedGroups) ||
       !unique(c.selectedGroups) ||
